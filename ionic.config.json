@@ -1,0 +1,7 @@
+{
+  "name": "djc-pos",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}

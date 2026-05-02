@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 40" role="img" aria-label="DJC POS">
+  <rect width="168" height="40" rx="10" fill="#ffffff" />
+  <rect x="10" y="7" width="28" height="26" rx="6" fill="#0b57ff" />
+  <rect x="14" y="11" width="20" height="8" rx="2" fill="white" />
+  <rect x="14" y="21" width="20" height="10" rx="2" fill="white" />
+  <circle cx="22" cy="27" r="2.2" fill="#ffdc5f" />
+
+  <text x="46" y="24" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="#0b57ff">DJC</text>
+  <text x="106" y="24" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#ff8c00">POS</text>
+  <text x="46" y="34" font-family="Inter, Arial, sans-serif" font-size="9" fill="#6b7280">POS solution for any merchant</text>
+</svg>
