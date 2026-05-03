@@ -6,7 +6,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonCardHeader, IonCardTitle, IonSegment, IonSegmentButton, IonLabel,
   IonIcon, IonSpinner, IonRefresher, IonRefresherContent, IonChip,
-  IonButtons, IonButton, AlertController, ToastController
+  IonButtons, IonButton, AlertController, ToastController, Platform
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline } from 'ionicons/icons';
@@ -318,6 +318,7 @@ export class ReportsPage implements ViewWillEnter {
 
   constructor(
     private api: DatabaseService,
+    private platform: Platform,
     private alertCtrl: AlertController,
     private toastCtrl: ToastController,
   ) {
@@ -452,45 +453,48 @@ export class ReportsPage implements ViewWillEnter {
 
     const workbookArray = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    const blob = new Blob([workbookArray], { type: xlsxMime });
-    const file = new File([blob], fileName, { type: xlsxMime });
 
     try {
-      // On mobile / Android Capacitor, use the Web Share API to hand off the file
-      if (navigator.share && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-        await navigator.share({ title: 'DJC POS Report', files: [file] });
-        return;
-      }
-
-      // Desktop: File System Access API (Chrome / Edge)
-      if ('showSaveFilePicker' in window) {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: fileName,
-          types: [{ description: 'Excel Workbook', accept: { [xlsxMime]: ['.xlsx'] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
+      if (this.platform.is('capacitor')) {
+        // Native Android/iOS: write to cache dir, then open OS share/save sheet
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
+        const uint8 = new Uint8Array(workbookArray as ArrayBuffer);
+        const binary = Array.from(uint8).reduce((s, b) => s + String.fromCharCode(b), '');
+        const base64 = btoa(binary);
+        await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
+        const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
+        await Share.share({ title: 'DJC POS Report', files: [uri] });
       } else {
-        // Fallback: programmatic anchor click (Firefox, Safari, older browsers)
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = fileName;
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
-        URL.revokeObjectURL(url);
+        // Web browser — File System Access API (Chrome/Edge), then anchor-click fallback
+        const blob = new Blob([workbookArray], { type: xlsxMime });
+        if ('showSaveFilePicker' in window) {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{ description: 'Excel Workbook', accept: { [xlsxMime]: ['.xlsx'] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+        } else {
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = fileName;
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
+          URL.revokeObjectURL(url);
+        }
+        const toast = await this.toastCtrl.create({
+          message: 'Report exported successfully.',
+          duration: 2500,
+          color: 'success',
+        });
+        await toast.present();
       }
-
-      const toast = await this.toastCtrl.create({
-        message: 'Report exported successfully.',
-        duration: 2500,
-        color: 'success',
-      });
-      await toast.present();
     } catch (err: any) {
-      if (err?.name === 'AbortError') return; // User cancelled the picker or share sheet — not an error
+      if (err?.name === 'AbortError') return; // User dismissed the share sheet — not an error
       const toast = await this.toastCtrl.create({
         message: 'Unable to export report. Please try again.',
         duration: 3000,

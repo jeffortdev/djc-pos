@@ -6,7 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonList, IonItem, IonLabel, IonInput, IonTextarea, IonButton, IonIcon, IonNote,
-  ToastController, AlertController
+  ToastController, AlertController, Platform
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline } from 'ionicons/icons';
@@ -166,6 +166,7 @@ export class SettingsPage {
 
   constructor(
     private api: DatabaseService,
+    private platform: Platform,
     private router: Router,
     private toastCtrl: ToastController,
     private alertCtrl: AlertController,
@@ -252,49 +253,47 @@ export class SettingsPage {
     try {
       const backup = await firstValueFrom(this.api.getBackupData());
       const fileName = `DJC_POS_Backup_${new Date().toISOString().slice(0, 10)}.json`;
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-      const file = new File([blob], fileName, { type: 'application/json' });
+      const jsonStr = JSON.stringify(backup, null, 2);
 
-      // On mobile / Android Capacitor, use the Web Share API to hand off the file
-      if (navigator.share && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ title: 'DJC POS Backup', files: [file] });
-          return;
-        } catch (err: any) {
-          if (err?.name === 'AbortError') return; // User cancelled — not an error
-          // Fall through to desktop methods
-        }
-      }
-
-      // Desktop: File System Access API (Chrome / Edge)
-      if ((window as any).showSaveFilePicker) {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: fileName,
-          types: [{ description: 'DJC POS Backup', accept: { 'application/json': ['.json'] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
+      if (this.platform.is('capacitor')) {
+        // Native Android/iOS: write to cache dir, then open OS share/save sheet
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
+        // encodeURIComponent + unescape handles multi-byte chars safely for btoa
+        const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+        await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
+        const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
+        await Share.share({ title: 'DJC POS Backup', files: [uri] });
       } else {
-        // Fallback: programmatic anchor click (Firefox, Safari, older browsers)
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = fileName;
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
-        URL.revokeObjectURL(url);
+        // Web browser — File System Access API (Chrome/Edge), then anchor-click fallback
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        if ((window as any).showSaveFilePicker) {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{ description: 'DJC POS Backup', accept: { 'application/json': ['.json'] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+        } else {
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = fileName;
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
+          URL.revokeObjectURL(url);
+        }
+        const toast = await this.toastCtrl.create({
+          message: 'Database backup saved successfully.',
+          duration: 2500,
+          color: 'success',
+        });
+        await toast.present();
       }
-
-      const toast = await this.toastCtrl.create({
-        message: 'Database backup saved successfully.',
-        duration: 2500,
-        color: 'success',
-      });
-      await toast.present();
     } catch (error: any) {
-      if (error?.name === 'AbortError') return; // User cancelled the picker — not an error
+      if (error?.name === 'AbortError') return; // User dismissed share sheet — not an error
       const toast = await this.toastCtrl.create({
         message: 'Unable to save database backup.',
         duration: 2500,
