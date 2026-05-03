@@ -451,20 +451,28 @@ export class ReportsPage implements ViewWillEnter {
     XLSX.utils.book_append_sheet(workbook, breakdownSheet, 'Breakdown');
 
     const workbookArray = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([workbookArray], { type: 'application/octet-stream' });
-    const file = new File([blob], fileName, { type: blob.type });
+    const xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const blob = new Blob([workbookArray], { type: xlsxMime });
+    const file = new File([blob], fileName, { type: xlsxMime });
 
     try {
+      // On mobile / Android Capacitor, use the Web Share API to hand off the file
+      if (navigator.share && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'DJC POS Report', files: [file] });
+        return;
+      }
+
+      // Desktop: File System Access API (Chrome / Edge)
       if ('showSaveFilePicker' in window) {
-        // Browser-native save picker
         const handle = await (window as any).showSaveFilePicker({
           suggestedName: fileName,
-          types: [{ description: 'Excel Workbook', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
+          types: [{ description: 'Excel Workbook', accept: { [xlsxMime]: ['.xlsx'] } }],
         });
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
       } else {
+        // Fallback: programmatic anchor click (Firefox, Safari, older browsers)
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
@@ -475,8 +483,14 @@ export class ReportsPage implements ViewWillEnter {
         URL.revokeObjectURL(url);
       }
 
-      await this.askSendDestination(file);
-    } catch (err) {
+      const toast = await this.toastCtrl.create({
+        message: 'Report exported successfully.',
+        duration: 2500,
+        color: 'success',
+      });
+      await toast.present();
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return; // User cancelled the picker or share sheet — not an error
       const toast = await this.toastCtrl.create({
         message: 'Unable to export report. Please try again.',
         duration: 3000,
@@ -484,37 +498,5 @@ export class ReportsPage implements ViewWillEnter {
       });
       await toast.present();
     }
-  }
-
-  private async askSendDestination(file: File): Promise<void> {
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        title: 'DJC POS Report',
-        text: 'Please review the attached DJC POS report.',
-        files: [file],
-      });
-      return;
-    }
-
-    const alert = await this.alertCtrl.create({
-      header: 'Send Report',
-      message: 'The report was exported. Enter an email address to send it or choose Cancel to keep it locally.',
-      inputs: [{ name: 'email', type: 'email', placeholder: 'user@example.com' }],
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        {
-          text: 'Email',
-          handler: data => {
-            const email = data.email?.trim();
-            if (!email) {
-              return false;
-            }
-            window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('DJC POS Report')}&body=${encodeURIComponent('The report has been exported to your device. Please attach the file and send.')}`;
-            return true;
-          },
-        },
-      ],
-    });
-    await alert.present();
   }
 }

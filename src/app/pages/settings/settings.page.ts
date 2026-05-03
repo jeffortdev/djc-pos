@@ -253,7 +253,20 @@ export class SettingsPage {
       const backup = await firstValueFrom(this.api.getBackupData());
       const fileName = `DJC_POS_Backup_${new Date().toISOString().slice(0, 10)}.json`;
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const file = new File([blob], fileName, { type: 'application/json' });
 
+      // On mobile / Android Capacitor, use the Web Share API to hand off the file
+      if (navigator.share && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ title: 'DJC POS Backup', files: [file] });
+          return;
+        } catch (err: any) {
+          if (err?.name === 'AbortError') return; // User cancelled — not an error
+          // Fall through to desktop methods
+        }
+      }
+
+      // Desktop: File System Access API (Chrome / Edge)
       if ((window as any).showSaveFilePicker) {
         const handle = await (window as any).showSaveFilePicker({
           suggestedName: fileName,
@@ -263,6 +276,7 @@ export class SettingsPage {
         await writable.write(blob);
         await writable.close();
       } else {
+        // Fallback: programmatic anchor click (Firefox, Safari, older browsers)
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
@@ -279,7 +293,8 @@ export class SettingsPage {
         color: 'success',
       });
       await toast.present();
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return; // User cancelled the picker — not an error
       const toast = await this.toastCtrl.create({
         message: 'Unable to save database backup.',
         duration: 2500,
