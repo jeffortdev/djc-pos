@@ -6,8 +6,9 @@ import { firstValueFrom } from 'rxjs';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonList, IonItem, IonLabel, IonInput, IonTextarea, IonButton, IonIcon, IonNote,
-  ToastController, AlertController, Platform
+  ToastController, AlertController
 } from '@ionic/angular/standalone';
+import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
 import { lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
@@ -166,7 +167,6 @@ export class SettingsPage {
 
   constructor(
     private api: DatabaseService,
-    private platform: Platform,
     private router: Router,
     private toastCtrl: ToastController,
     private alertCtrl: AlertController,
@@ -255,7 +255,7 @@ export class SettingsPage {
       const fileName = `DJC_POS_Backup_${new Date().toISOString().slice(0, 10)}.json`;
       const jsonStr = JSON.stringify(backup, null, 2);
 
-      if (this.platform.is('capacitor')) {
+      if (Capacitor.isNativePlatform()) {
         // Native Android/iOS: write to cache dir, then open OS share/save sheet
         const { Filesystem, Directory } = await import('@capacitor/filesystem');
         const { Share } = await import('@capacitor/share');
@@ -264,6 +264,12 @@ export class SettingsPage {
         await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
         const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
         await Share.share({ title: 'DJC POS Backup', files: [uri] });
+        const toast = await this.toastCtrl.create({
+          message: 'Backup ready — choose where to save it.',
+          duration: 2000,
+          color: 'success',
+        });
+        await toast.present();
       } else {
         // Web browser — File System Access API (Chrome/Edge), then anchor-click fallback
         const blob = new Blob([jsonStr], { type: 'application/json' });

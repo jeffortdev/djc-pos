@@ -6,13 +6,14 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonCardHeader, IonCardTitle, IonSegment, IonSegmentButton, IonLabel,
   IonIcon, IonSpinner, IonRefresher, IonRefresherContent, IonChip,
-  IonButtons, IonButton, AlertController, ToastController, Platform
+  IonButtons, IonButton, AlertController, ToastController
 } from '@ionic/angular/standalone';
+import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
 import { trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { ReportStats } from '../../models/models';
-import * as XLSX from 'xlsx';
+import writeXlsxFile, { Schema } from 'write-excel-file';
 
 @Component({
   selector: 'app-reports',
@@ -318,7 +319,6 @@ export class ReportsPage implements ViewWillEnter {
 
   constructor(
     private api: DatabaseService,
-    private platform: Platform,
     private alertCtrl: AlertController,
     private toastCtrl: ToastController,
   ) {
@@ -392,74 +392,85 @@ export class ReportsPage implements ViewWillEnter {
     if (!this.data) return;
 
     const fileName = `DJC_POS_Report_${this.period}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    const workbook = XLSX.utils.book_new();
-
-    const summarySheet = [
-      ['Report Type', this.periodLabel],
-      ['Payment Filter', this.paymentFilter],
-      ['From', this.dateFrom],
-      ['To', this.dateTo],
-      [],
-      ['Current Revenue', this.data.current.revenue],
-      ['Current Transactions', this.data.current.count],
-      ['Current Avg Ticket', this.data.current.avg],
-      [],
-      ['Previous Revenue', this.data.previous.revenue],
-      ['Previous Transactions', this.data.previous.count],
-      ['Previous Avg Ticket', this.data.previous.avg],
-    ];
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summarySheet), 'Summary');
-
-    const paymentSheet = XLSX.utils.json_to_sheet(this.data.paymentBreakdown.map(p => ({
-      Method: p.method,
-      Revenue: p.revenue,
-      Count: p.count,
-    })));
-    XLSX.utils.book_append_sheet(workbook, paymentSheet, 'Payment Breakdown');
-
-    const serviceSheet = XLSX.utils.json_to_sheet(this.data.topServices.map((svc, index) => ({
-      Rank: index + 1,
-      Service: svc.service_name,
-      Quantity: svc.quantity,
-      Revenue: svc.revenue,
-    })));
-    XLSX.utils.book_append_sheet(workbook, serviceSheet, 'Top Services');
-
-    const productSheet = XLSX.utils.json_to_sheet(this.data.topProducts.map((prod, index) => ({
-      Rank: index + 1,
-      Product: prod.product_name,
-      Quantity: prod.quantity,
-      Revenue: prod.revenue,
-    })));
-    XLSX.utils.book_append_sheet(workbook, productSheet, 'Top Products');
-
-    const stockSheet = XLSX.utils.json_to_sheet(this.data.stockLevels.map(stock => ({
-      Product: stock.product_name,
-      Stock: stock.stock,
-      'Avg Daily Sales': stock.avgDailySales,
-      'Days Remaining': stock.daysRemaining === null ? '∞' : stock.daysRemaining,
-      Status: stock.status === 'must-buy' ? 'Must buy' : stock.status === 'warning' ? '2 days' : stock.status === 'no-sales' ? 'No sales' : 'OK',
-      Price: stock.price,
-      Cost: stock.cost,
-    })));
-    XLSX.utils.book_append_sheet(workbook, stockSheet, 'Stock Levels');
-
-    const breakdownSheet = XLSX.utils.json_to_sheet(this.data.breakdown.map(item => ({
-      Label: item.label,
-      Revenue: item.revenue,
-      Count: item.count,
-    })));
-    XLSX.utils.book_append_sheet(workbook, breakdownSheet, 'Breakdown');
-
-    const workbookArray = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
     try {
-      if (this.platform.is('capacitor')) {
+      // Build sheets as row arrays — write-excel-file is browser/WebView native
+      const summarySchema: Schema<{ label: string; value: string | number }> = [
+        { column: 'Label', type: String, value: r => String(r.label) },
+        { column: 'Value', type: String, value: r => String(r.value) },
+      ];
+      const summaryData: { label: string; value: string | number }[] = [
+        { label: 'Report Type', value: this.periodLabel },
+        { label: 'Payment Filter', value: this.paymentFilter },
+        { label: 'From', value: this.dateFrom ?? '' },
+        { label: 'To', value: this.dateTo ?? '' },
+        { label: 'Current Revenue', value: this.data.current.revenue },
+        { label: 'Current Transactions', value: this.data.current.count },
+        { label: 'Current Avg Ticket', value: this.data.current.avg },
+        { label: 'Previous Revenue', value: this.data.previous.revenue },
+        { label: 'Previous Transactions', value: this.data.previous.count },
+        { label: 'Previous Avg Ticket', value: this.data.previous.avg },
+      ];
+
+      const pmSchema: Schema<{ method: string; revenue: number; count: number }> = [
+        { column: 'Method',  type: String, value: r => r.method },
+        { column: 'Revenue', type: Number, value: r => r.revenue },
+        { column: 'Count',   type: Number, value: r => r.count },
+      ];
+
+      const svcSchema: Schema<{ rank: number; service_name: string; quantity: number; revenue: number }> = [
+        { column: 'Rank',     type: Number, value: r => r.rank },
+        { column: 'Service',  type: String, value: r => r.service_name },
+        { column: 'Quantity', type: Number, value: r => r.quantity },
+        { column: 'Revenue',  type: Number, value: r => r.revenue },
+      ];
+
+      const prodSchema: Schema<{ rank: number; product_name: string; quantity: number; revenue: number }> = [
+        { column: 'Rank',     type: Number, value: r => r.rank },
+        { column: 'Product',  type: String, value: r => r.product_name },
+        { column: 'Quantity', type: Number, value: r => r.quantity },
+        { column: 'Revenue',  type: Number, value: r => r.revenue },
+      ];
+
+      type StockRow = { product_name: string; stock: number; avgDailySales: number; daysRemaining: number | null; status: string; price: number; cost: number };
+      const stockSchema: Schema<StockRow> = [
+        { column: 'Product',        type: String, value: r => r.product_name },
+        { column: 'Stock',          type: Number, value: r => r.stock },
+        { column: 'Avg Daily Sales',type: Number, value: r => r.avgDailySales },
+        { column: 'Days Remaining', type: String, value: r => r.daysRemaining === null ? '∞' : String(r.daysRemaining) },
+        { column: 'Status',         type: String, value: r => r.status === 'must-buy' ? 'Must buy' : r.status === 'warning' ? '2 days' : r.status === 'no-sales' ? 'No sales' : 'OK' },
+        { column: 'Price',          type: Number, value: r => r.price },
+        { column: 'Cost',           type: Number, value: r => r.cost },
+      ];
+
+      const bdSchema: Schema<{ label: string; revenue: number; count: number }> = [
+        { column: 'Label',   type: String, value: r => r.label },
+        { column: 'Revenue', type: Number, value: r => r.revenue },
+        { column: 'Count',   type: Number, value: r => r.count },
+      ];
+
+      const blob: Blob = await writeXlsxFile(
+        [
+          summaryData,
+          this.data.paymentBreakdown,
+          this.data.topServices.map((s, i) => ({ rank: i + 1, ...s })),
+          this.data.topProducts.map((p, i) => ({ rank: i + 1, ...p })),
+          this.data.stockLevels as StockRow[],
+          this.data.breakdown,
+        ] as any,
+        {
+          sheets: ['Summary', 'Payment Breakdown', 'Top Services', 'Top Products', 'Stock Levels', 'Breakdown'],
+          schema: [summarySchema, pmSchema, svcSchema, prodSchema, stockSchema, bdSchema] as any,
+        }
+      );
+
+      if (Capacitor.isNativePlatform()) {
         // Native Android/iOS: write to cache dir, then open OS share/save sheet
         const { Filesystem, Directory } = await import('@capacitor/filesystem');
         const { Share } = await import('@capacitor/share');
-        const uint8 = new Uint8Array(workbookArray as ArrayBuffer);
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8 = new Uint8Array(arrayBuffer);
         const binary = Array.from(uint8).reduce((s, b) => s + String.fromCharCode(b), '');
         const base64 = btoa(binary);
         await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
@@ -467,17 +478,17 @@ export class ReportsPage implements ViewWillEnter {
         await Share.share({ title: 'DJC POS Report', files: [uri] });
       } else {
         // Web browser — File System Access API (Chrome/Edge), then anchor-click fallback
-        const blob = new Blob([workbookArray], { type: xlsxMime });
+        const blobTyped = new Blob([blob], { type: xlsxMime });
         if ('showSaveFilePicker' in window) {
           const handle = await (window as any).showSaveFilePicker({
             suggestedName: fileName,
             types: [{ description: 'Excel Workbook', accept: { [xlsxMime]: ['.xlsx'] } }],
           });
           const writable = await handle.createWritable();
-          await writable.write(blob);
+          await writable.write(blobTyped);
           await writable.close();
         } else {
-          const url = URL.createObjectURL(blob);
+          const url = URL.createObjectURL(blobTyped);
           const anchor = document.createElement('a');
           anchor.href = url;
           anchor.download = fileName;
