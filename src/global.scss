@@ -36,10 +36,20 @@
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
 @import "@ionic/angular/css/palettes/dark.system.css";
 
-/* ── DJC POC logo ──────────────────────────────────────────────── */
+/* ── DJC header logo ───────────────────────────────────────────── */
+ion-toolbar ion-title {
+  display: flex;
+  align-items: center;
+  padding-inline: 0;
+}
+
 .header-logo {
-  height: 28px;
+  height: 44px;
+  max-height: 100%;
+  width: auto;
   display: block;
+  object-fit: contain;
+  margin-left: 10px;
 }
 
 .receipt-logo-img {

@@ -7,15 +7,16 @@ import { CommonModule, CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonGrid, IonRow, IonCol,
-  IonCard, IonCardContent, IonButton, IonIcon, IonChip, IonLabel, IonSpinner,
-  IonRefresher, IonRefresherContent,
+  IonCard, IonCardContent, IonButton, IonButtons, IonIcon, IonChip, IonLabel, IonSpinner,
+  IonRefresher, IonRefresherContent, IonBadge,
   ModalController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   shirtOutline, waterOutline, flameOutline, sparklesOutline, starOutline,
   checkmarkCircleOutline, removeOutline, addOutline, trashOutline,
-  cardOutline, cashOutline, phonePortraitOutline, checkmarkDoneOutline, receiptOutline
+  cardOutline, cashOutline, phonePortraitOutline, checkmarkDoneOutline, receiptOutline,
+  cartOutline, closeOutline
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { LaundryService, Product, CartItem } from '../../models/models';
@@ -37,20 +38,33 @@ const CATEGORY_ICONS: Record<string, string> = {
   imports: [
     CommonModule, CurrencyPipe, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonGrid, IonRow, IonCol,
-    IonCard, IonCardContent, IonButton, IonIcon, IonChip, IonLabel, IonSpinner,
-    IonRefresher, IonRefresherContent,
+    IonCard, IonCardContent, IonButton, IonButtons, IonIcon, IonChip, IonLabel, IonSpinner,
+    IonRefresher, IonRefresherContent, IonBadge,
   ],
   providers: [ModalController, ToastController],
   template: `
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC POS" class="header-logo">
+          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
         </ion-title>
+        <!-- Cart icon button: only visible on phones -->
+        <ion-buttons slot="end" class="mobile-cart-btn">
+          <div class="cart-icon-wrap" (click)="toggleCart()">
+            <ion-button fill="clear">
+              <ion-icon name="cart-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+            @if (cartCount > 0) {
+              <ion-badge color="danger" class="cart-badge">{{ cartCount }}</ion-badge>
+            }
+          </div>
+        </ion-buttons>
         @if (cart.length > 0) {
-          <ion-button slot="end" fill="clear" (click)="clearCart()">
-            <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
-          </ion-button>
+          <ion-buttons slot="end">
+            <ion-button fill="clear" (click)="clearCart()">
+              <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+          </ion-buttons>
         }
       </ion-toolbar>
     </ion-header>
@@ -63,6 +77,9 @@ const CATEGORY_ICONS: Record<string, string> = {
         <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
       } @else {
         <div class="pos-layout">
+
+          <!-- Backdrop: tapping closes cart sheet on mobile -->
+          <div class="cart-backdrop" [class.visible]="showCart" (click)="toggleCart()"></div>
 
           <!-- TOP: Service / Product selector -->
           <div class="services-pane">
@@ -113,8 +130,15 @@ const CATEGORY_ICONS: Record<string, string> = {
             </div>
           </div>
 
-          <!-- BOTTOM: Cart -->
-          <div class="cart-pane">
+          <!-- BOTTOM: Cart (full-width on tablet; bottom sheet on phone) -->
+          <div class="cart-pane" [class.cart-open]="showCart">
+            <!-- Drag handle + close button (mobile only) -->
+            <div class="cart-sheet-handle">
+              <span class="handle-bar"></span>
+              <button class="cart-close-btn" (click)="toggleCart()">
+                <ion-icon name="close-outline"></ion-icon>
+              </button>
+            </div>
             <div class="cart-header">
               <span class="cart-title">Order</span>
               <span class="cart-count">{{ cartCount }} item{{ cartCount !== 1 ? 's' : '' }}</span>
@@ -160,7 +184,8 @@ const CATEGORY_ICONS: Record<string, string> = {
     ion-content { --overflow: hidden; }
     .loading-center { display: flex; justify-content: center; align-items: center; height: 100%; }
 
-    .pos-layout { display: flex; flex-direction: column; height: 100%; }
+    /* ===== Base layout ===== */
+    .pos-layout { display: flex; flex-direction: column; height: 100%; position: relative; overflow: hidden; }
 
     /* Services pane */
     .services-pane { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -175,9 +200,92 @@ const CATEGORY_ICONS: Record<string, string> = {
     .tile-stock { font-size: 0.72rem; opacity: 0.6; margin: 0; }
     .empty-msg { text-align: center; opacity: 0.5; padding: 24px; }
 
-    /* Cart pane */
-    .cart-pane { flex: 0 0 42vh; min-height: 190px; display: flex; flex-direction: column; border-top: 2px solid var(--ion-color-light); background: var(--ion-background-color); }
-    .cart-header { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 6px 14px; border-bottom: 1px solid var(--ion-color-light); }
+    /* ===== Mobile cart bottom sheet (default / phone) ===== */
+    .cart-backdrop {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 9;
+      background: rgba(0,0,0,0.45);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s ease;
+    }
+    .cart-backdrop.visible {
+      display: block;
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .cart-pane {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      z-index: 10;
+      max-height: 78%;
+      display: flex;
+      flex-direction: column;
+      background: var(--ion-background-color);
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
+      transform: translateY(105%);
+      transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+    }
+    .cart-pane.cart-open { transform: translateY(0); }
+
+    /* Sheet handle bar */
+    .cart-sheet-handle {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px 0;
+      position: relative;
+    }
+    .handle-bar {
+      width: 36px; height: 4px;
+      border-radius: 2px;
+      background: var(--ion-color-medium-shade);
+      opacity: 0.4;
+    }
+    .cart-close-btn {
+      position: absolute;
+      right: 10px;
+      top: 4px;
+      background: none;
+      border: none;
+      font-size: 1.3rem;
+      color: var(--ion-color-medium);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 4px;
+    }
+
+    /* Mobile header cart icon */
+    .mobile-cart-btn {
+      display: inline-flex;
+      align-items: center;
+    }
+    .cart-icon-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .cart-badge {
+      position: absolute;
+      top: 6px; right: 6px;
+      font-size: 0.62rem;
+      min-width: 16px; height: 16px;
+      padding: 0 3px;
+      border-radius: 8px;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Cart inner layout */
+    .cart-header { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 4px 14px 6px; border-bottom: 1px solid var(--ion-color-light); }
     .cart-title { font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
     .cart-count { font-size: 0.75rem; opacity: 0.45; }
     .cart-body { flex: 1; overflow-y: auto; padding: 2px 0; }
@@ -193,6 +301,24 @@ const CATEGORY_ICONS: Record<string, string> = {
     .total-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .total-label { font-size: 0.9rem; opacity: 0.65; }
     .total-amount { font-size: 1.2rem; color: var(--ion-color-primary); }
+
+    /* ===== Tablet and above: restore split layout ===== */
+    @media (min-width: 768px) {
+      .mobile-cart-btn { display: none !important; }
+      .cart-backdrop { display: none !important; pointer-events: none !important; }
+      .cart-sheet-handle { display: none; }
+      .cart-close-btn { display: none; }
+      .cart-pane {
+        position: static;
+        transform: none !important;
+        max-height: none;
+        flex: 0 0 42vh;
+        min-height: 190px;
+        border-radius: 0;
+        box-shadow: none;
+        border-top: 2px solid var(--ion-color-light);
+      }
+    }
   `],
 })
 export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
@@ -202,6 +328,7 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
   loading = true;
   activeMode: 'services' | 'products' = 'services';
   activeCategory = '';
+  showCart = false;
   private routerSub?: Subscription;
   private servicesLoaded = false;
   private productsLoaded = false;
@@ -215,7 +342,8 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
     addIcons({
       shirtOutline, waterOutline, flameOutline, sparklesOutline, starOutline,
       checkmarkCircleOutline, removeOutline, addOutline, trashOutline,
-      cardOutline, cashOutline, phonePortraitOutline, checkmarkDoneOutline, receiptOutline
+      cardOutline, cashOutline, phonePortraitOutline, checkmarkDoneOutline, receiptOutline,
+      cartOutline, closeOutline
     });
   }
 
@@ -372,9 +500,15 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
 
   clearCart(): void {
     this.cart = [];
+    this.showCart = false;
+  }
+
+  toggleCart(): void {
+    this.showCart = !this.showCart;
   }
 
   async charge(): Promise<void> {
+    this.showCart = false;
     const modal = await this.modalCtrl.create({
       component: PaymentModalComponent,
       componentProps: { cart: this.cart },

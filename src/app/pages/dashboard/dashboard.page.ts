@@ -31,7 +31,7 @@ import { DashboardStats, ReportStats } from '../../models/models';
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC POS" class="header-logo">
+          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
         </ion-title>
       </ion-toolbar>
     </ion-header>

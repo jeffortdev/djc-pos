@@ -30,7 +30,7 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC POS" class="header-logo">
+          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
         </ion-title>
         <ion-buttons slot="end">
           <ion-button (click)="startAdd()">

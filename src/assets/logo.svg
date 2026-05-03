@@ -1,18 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 40" role="img" aria-label="DJC POS">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0b57ff" />
-      <stop offset="100%" stop-color="#3fc3ff" />
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 190 44" role="img" aria-label="DJC Point of Sale">
 
-  <rect width="168" height="40" rx="10" fill="url(#bg)" />
-  <rect x="10" y="7" width="28" height="26" rx="6" fill="rgba(255,255,255,0.18)" />
-  <rect x="14" y="11" width="20" height="8" rx="2" fill="white" />
-  <rect x="14" y="21" width="20" height="10" rx="2" fill="white" />
-  <circle cx="22" cy="27" r="2.2" fill="#0b57ff" />
+  <!-- Shopping bag handles -->
+  <path d="M13,18 Q13,9 20,9 Q27,9 27,18" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"/>
 
-  <text x="46" y="24" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" fill="white">DJC</text>
-  <text x="106" y="24" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#ffdc5f">POS</text>
-  <text x="46" y="34" font-family="Inter, Arial, sans-serif" font-size="9" fill="white" opacity="0.85">Point of Sale for general business</text>
+  <!-- Shopping bag body -->
+  <path d="M8,18 L11,40 L29,40 L32,18 Z" fill="rgba(255,255,255,0.18)" stroke="white" stroke-width="1.8"/>
+
+  <!-- Price tag circle on bag -->
+  <circle cx="20" cy="29" r="6" fill="rgba(255,255,255,0.22)" stroke="white" stroke-width="1.4"/>
+
+  <!-- Currency symbol (₱ using P + lines) -->
+  <text x="20" y="33"
+        font-family="Inter,'Helvetica Neue',Arial,sans-serif"
+        font-size="9" font-weight="700" fill="white"
+        text-anchor="middle">₱</text>
+
+  <!-- DJC brand name -->
+  <text x="48" y="28"
+        font-family="Inter,'Helvetica Neue',Arial,sans-serif"
+        font-size="22" font-weight="800" fill="white" letter-spacing="2">DJC</text>
+
+  <!-- Point of Sale subtitle -->
+  <text x="49" y="40"
+        font-family="Inter,'Helvetica Neue',Arial,sans-serif"
+        font-size="8.5" font-weight="400" fill="rgba(255,255,255,0.78)" letter-spacing="2.5">Point of Sale</text>
 </svg>
+

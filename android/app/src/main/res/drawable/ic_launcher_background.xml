@@ -1,12 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportHeight="108"
     android:viewportWidth="108">
-    <path
-        android:fillColor="#26A69A"
-        android:pathData="M0,0h108v108h-108z" />
+
+    <!-- Blue diagonal gradient background -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108">
+                <item android:color="#FF1544C0" android:offset="0"/>
+                <item android:color="#FF3C7EFF" android:offset="1"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Subtle top-right radial highlight -->
+    <path android:pathData="M108,0 m-42,0 a42,42 0 0,1 42,42 L108,0 Z"
+        android:fillColor="#22FFFFFF"/>
+
+</vector>
     <path
         android:fillColor="#00000000"
         android:pathData="M9,0L9,108"
