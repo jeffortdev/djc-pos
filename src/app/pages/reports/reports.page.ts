@@ -13,7 +13,8 @@ import { addIcons } from 'ionicons';
 import { trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { ReportStats } from '../../models/models';
-import writeXlsxFile, { Schema } from 'write-excel-file';
+import writeXlsxFile from 'write-excel-file/browser';
+import type { Sheet } from 'write-excel-file/browser';
 
 @Component({
   selector: 'app-reports',
@@ -395,78 +396,73 @@ export class ReportsPage implements ViewWillEnter {
     const xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
     try {
-      // Build sheets as row arrays — write-excel-file is browser/WebView native
-      const summarySchema: Schema<{ label: string; value: string | number }> = [
-        { column: 'Label', type: String, value: r => String(r.label) },
-        { column: 'Value', type: String, value: r => String(r.value) },
-      ];
-      const summaryData: { label: string; value: string | number }[] = [
-        { label: 'Report Type', value: this.periodLabel },
-        { label: 'Payment Filter', value: this.paymentFilter },
-        { label: 'From', value: this.dateFrom ?? '' },
-        { label: 'To', value: this.dateTo ?? '' },
-        { label: 'Current Revenue', value: this.data.current.revenue },
-        { label: 'Current Transactions', value: this.data.current.count },
-        { label: 'Current Avg Ticket', value: this.data.current.avg },
-        { label: 'Previous Revenue', value: this.data.previous.revenue },
-        { label: 'Previous Transactions', value: this.data.previous.count },
-        { label: 'Previous Avg Ticket', value: this.data.previous.avg },
-      ];
+      const d = this.data;
+      const statusLabel = (s: string) =>
+        s === 'must-buy' ? 'Must buy' : s === 'warning' ? '2 days' : s === 'no-sales' ? 'No sales' : 'OK';
 
-      const pmSchema: Schema<{ method: string; revenue: number; count: number }> = [
-        { column: 'Method',  type: String, value: r => r.method },
-        { column: 'Revenue', type: Number, value: r => r.revenue },
-        { column: 'Count',   type: Number, value: r => r.count },
-      ];
-
-      const svcSchema: Schema<{ rank: number; service_name: string; quantity: number; revenue: number }> = [
-        { column: 'Rank',     type: Number, value: r => r.rank },
-        { column: 'Service',  type: String, value: r => r.service_name },
-        { column: 'Quantity', type: Number, value: r => r.quantity },
-        { column: 'Revenue',  type: Number, value: r => r.revenue },
-      ];
-
-      const prodSchema: Schema<{ rank: number; product_name: string; quantity: number; revenue: number }> = [
-        { column: 'Rank',     type: Number, value: r => r.rank },
-        { column: 'Product',  type: String, value: r => r.product_name },
-        { column: 'Quantity', type: Number, value: r => r.quantity },
-        { column: 'Revenue',  type: Number, value: r => r.revenue },
-      ];
-
-      type StockRow = { product_name: string; stock: number; avgDailySales: number; daysRemaining: number | null; status: string; price: number; cost: number };
-      const stockSchema: Schema<StockRow> = [
-        { column: 'Product',        type: String, value: r => r.product_name },
-        { column: 'Stock',          type: Number, value: r => r.stock },
-        { column: 'Avg Daily Sales',type: Number, value: r => r.avgDailySales },
-        { column: 'Days Remaining', type: String, value: r => r.daysRemaining === null ? '∞' : String(r.daysRemaining) },
-        { column: 'Status',         type: String, value: r => r.status === 'must-buy' ? 'Must buy' : r.status === 'warning' ? '2 days' : r.status === 'no-sales' ? 'No sales' : 'OK' },
-        { column: 'Price',          type: Number, value: r => r.price },
-        { column: 'Cost',           type: Number, value: r => r.cost },
-      ];
-
-      const bdSchema: Schema<{ label: string; revenue: number; count: number }> = [
-        { column: 'Label',   type: String, value: r => r.label },
-        { column: 'Revenue', type: Number, value: r => r.revenue },
-        { column: 'Count',   type: Number, value: r => r.count },
-      ];
-
-      const blob: Blob = await writeXlsxFile(
-        [
-          summaryData,
-          this.data.paymentBreakdown,
-          this.data.topServices.map((s, i) => ({ rank: i + 1, ...s })),
-          this.data.topProducts.map((p, i) => ({ rank: i + 1, ...p })),
-          this.data.stockLevels as StockRow[],
-          this.data.breakdown,
-        ] as any,
+      const sheets: Sheet<Blob>[] = [
         {
-          sheets: ['Summary', 'Payment Breakdown', 'Top Services', 'Top Products', 'Stock Levels', 'Breakdown'],
-          schema: [summarySchema, pmSchema, svcSchema, prodSchema, stockSchema, bdSchema] as any,
-        }
-      );
+          sheet: 'Summary',
+          data: [
+            ['Label', 'Value'],
+            ['Report Type', this.periodLabel],
+            ['Payment Filter', this.paymentFilter],
+            ['From', this.dateFrom ?? ''],
+            ['To', this.dateTo ?? ''],
+            ['Current Revenue', d.current.revenue],
+            ['Current Transactions', d.current.count],
+            ['Current Avg Ticket', d.current.avg],
+            ['Previous Revenue', d.previous.revenue],
+            ['Previous Transactions', d.previous.count],
+            ['Previous Avg Ticket', d.previous.avg],
+          ],
+        },
+        {
+          sheet: 'Payment Breakdown',
+          data: [
+            ['Method', 'Revenue', 'Count'],
+            ...d.paymentBreakdown.map(p => [p.method, p.revenue, p.count]),
+          ],
+        },
+        {
+          sheet: 'Top Services',
+          data: [
+            ['Rank', 'Service', 'Quantity', 'Revenue'],
+            ...d.topServices.map((s, i) => [i + 1, s.service_name, s.quantity, s.revenue]),
+          ],
+        },
+        {
+          sheet: 'Top Products',
+          data: [
+            ['Rank', 'Product', 'Quantity', 'Revenue'],
+            ...d.topProducts.map((p, i) => [i + 1, p.product_name, p.quantity, p.revenue]),
+          ],
+        },
+        {
+          sheet: 'Stock Levels',
+          data: [
+            ['Product', 'Stock', 'Avg Daily Sales', 'Days Remaining', 'Status', 'Price', 'Cost'],
+            ...d.stockLevels.map(s => [
+              s.product_name, s.stock, s.avgDailySales,
+              s.daysRemaining === null ? '\u221e' : s.daysRemaining,
+              statusLabel(s.status), s.price, s.cost,
+            ]),
+          ],
+        },
+        {
+          sheet: 'Breakdown',
+          data: [
+            ['Label', 'Revenue', 'Count'],
+            ...d.breakdown.map(b => [b.label, b.revenue, b.count]),
+          ],
+        },
+      ];
+
+      // writeXlsxFile (browser build) returns a ReturnType with .toBlob()
+      const xlsxResult = writeXlsxFile(sheets);
+      const blob: Blob = await xlsxResult.toBlob();
 
       if (Capacitor.isNativePlatform()) {
-        // Native Android/iOS: write to cache dir, then open OS share/save sheet
         const { Filesystem, Directory } = await import('@capacitor/filesystem');
         const { Share } = await import('@capacitor/share');
         const arrayBuffer = await blob.arrayBuffer();
@@ -477,7 +473,6 @@ export class ReportsPage implements ViewWillEnter {
         const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
         await Share.share({ title: 'DJC POS Report', files: [uri] });
       } else {
-        // Web browser — File System Access API (Chrome/Edge), then anchor-click fallback
         const blobTyped = new Blob([blob], { type: xlsxMime });
         if ('showSaveFilePicker' in window) {
           const handle = await (window as any).showSaveFilePicker({
@@ -505,7 +500,7 @@ export class ReportsPage implements ViewWillEnter {
         await toast.present();
       }
     } catch (err: any) {
-      if (err?.name === 'AbortError') return; // User dismissed the share sheet — not an error
+      if (err?.name === 'AbortError') return;
       const toast = await this.toastCtrl.create({
         message: 'Unable to export report. Please try again.',
         duration: 3000,
