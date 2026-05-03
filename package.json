@@ -19,7 +19,7 @@
     "cap:open:android": "npx cap open android",
     "cap:apk:debug": "npm run cap:build:android && cd android && gradlew assembleDebug",
     "cap:apk:release": "npm run cap:build:android && cd android && gradlew assembleRelease",
-    "install:android": "npm run cap:apk:debug && cd android && \"C:\\Users\\jeffr\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" uninstall com.laundropos.app || echo App not installed && \"C:\\Users\\jeffr\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" install -r app/build/outputs/apk/debug/app-debug.apk",
+    "install:android": "npm run cap:apk:debug && cd android && \"C:\\Users\\jeffr\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" uninstall com.djcpos.app || echo App not installed && \"C:\\Users\\jeffr\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" install -r app/build/outputs/apk/debug/app-debug.apk",
     "sign:android": "node ./scripts/sign-apk.js"
   },
   "private": true,

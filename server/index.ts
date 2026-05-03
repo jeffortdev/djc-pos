@@ -18,5 +18,5 @@ app.use('/api/dashboard', dashboardRouter);
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 app.listen(PORT, '127.0.0.1', () => {
-  console.log(`🧺 Laundromat POS API running at http://127.0.0.1:${PORT}`);
+  console.log(`🧺 DJC POS API running at http://127.0.0.1:${PORT}`);
 });

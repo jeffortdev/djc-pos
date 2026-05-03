@@ -49,7 +49,7 @@ const keystorePath = resolve(process.env.KEYSTORE_PATH || join(__dirname, '..', 
 const keyAlias = process.env.KEY_ALIAS;
 const keystorePass = process.env.KEYSTORE_PASSWORD;
 const keyPass = process.env.KEY_PASSWORD || keystorePass;
-const distinguishedName = process.env.KEYSTORE_DNAME || 'CN=LaundroPos, OU=IT, O=LaundroPos, L=Manila, S=Metro Manila, C=PH';
+const distinguishedName = process.env.KEYSTORE_DNAME || 'CN=DJCPos, OU=IT, O=DJCPos, L=Manila, S=Metro Manila, C=PH';
 
 if (!keyAlias || !keystorePass) {
   console.error('Missing required signing environment variables.');

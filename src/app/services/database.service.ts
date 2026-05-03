@@ -3,7 +3,7 @@ import { Platform } from '@ionic/angular/standalone';
 import { BehaviorSubject, Observable, from } from 'rxjs';
 import { DashboardStats, LaundryService, Product, Transaction, TransactionItem, DatabaseBackup, ReportStats, ReportBreakdown } from '../models/models';
 
-const DB_NAME = 'laundromat';
+const DB_NAME = 'djcpos';
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS services (

@@ -1,4 +1,4 @@
-package com.laundropos.app;
+package com.djcpos.app;
 
 import com.getcapacitor.BridgeActivity;
 
