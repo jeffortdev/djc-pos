@@ -527,7 +527,7 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
       next: async tx => {
         const productItems = this.cart.filter(i => i.item_type === 'product');
         for (const item of productItems) {
-          this.api.adjustProductStock(item.service_id, -item.quantity).subscribe();
+          this.api.adjustProductStock(item.service_id, -item.quantity, 'sale').subscribe();
         }
         this.cart = [];
         const receiptModal = await this.modalCtrl.create({

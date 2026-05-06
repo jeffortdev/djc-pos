@@ -6,13 +6,13 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonCardHeader, IonCardTitle, IonSegment, IonSegmentButton, IonLabel,
   IonIcon, IonSpinner, IonRefresher, IonRefresherContent, IonChip,
-  IonButtons, IonButton, AlertController, ToastController
+  IonButtons, IonButton, IonSelect, IonSelectOption, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
 import { trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
-import { ReportStats } from '../../models/models';
+import { ReportStats, RepeatCustomer } from '../../models/models';
 import writeXlsxFile from 'write-excel-file/browser';
 import type { Sheet } from 'write-excel-file/browser';
 
@@ -23,7 +23,7 @@ import type { Sheet } from 'write-excel-file/browser';
     CommonModule, CurrencyPipe, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
     IonCardHeader, IonCardTitle, IonSegment, IonSegmentButton, IonLabel,
-    IonIcon, IonButtons, IonButton, IonSpinner, IonRefresher, IonRefresherContent, IonChip,
+    IonIcon, IonButtons, IonButton, IonSelect, IonSelectOption, IonSpinner, IonRefresher, IonRefresherContent, IonChip,
   ],
   template: `
     <ion-header>
@@ -211,6 +211,58 @@ import type { Sheet } from 'write-excel-file/browser';
           </ion-card-content>
         </ion-card>
 
+        <!-- Top repeat customers -->
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>Top Repeat Customers</ion-card-title>
+            <div class="card-title-row rc-filters">
+              <div class="rc-period-tabs">
+                @for (rp of rcPeriods; track rp.value) {
+                  <button
+                    class="rc-tab"
+                    [class.active]="repeatCustomerPeriod === rp.value"
+                    (click)="setRcPeriod(rp.value)">
+                    {{ rp.label }}
+                  </button>
+                }
+              </div>
+              <ion-select
+                [(ngModel)]="repeatCustomerLimit"
+                (ionChange)="loadRepeatCustomers()"
+                interface="popover"
+                class="limit-select">
+                <ion-select-option [value]="5">Top 5</ion-select-option>
+                <ion-select-option [value]="10">Top 10</ion-select-option>
+                <ion-select-option [value]="20">Top 20</ion-select-option>
+              </ion-select>
+            </div>
+          </ion-card-header>
+          <ion-card-content>
+            @if (repeatCustomers.length === 0) {
+              <p class="empty">No customers with a phone number found for this period.</p>
+            } @else {
+              <div class="rc-table">
+                <div class="rc-row rc-header">
+                  <span>#</span>
+                  <span>Phone</span>
+                  <span class="rc-right">Visits</span>
+                  <span class="rc-right">Total Spent</span>
+                </div>
+                @for (c of repeatCustomers; track c.phone_number; let i = $index) {
+                  <div class="rc-row">
+                    <span class="rank">#{{ i + 1 }}</span>
+                    <span class="rc-phone">{{ c.phone_number }}</span>
+                    <span class="rc-right">
+                      <ion-chip color="tertiary" size="small"><ion-label>{{ c.visit_count }}x</ion-label></ion-chip>
+                    </span>
+                    <span class="rc-right rc-spent">{{ c.total_spent | currency:'PHP':'symbol':'1.2-2' }}</span>
+                  </div>
+                }
+              </div>
+            }
+          </ion-card-content>
+        </ion-card>
+
         <!-- Stock levels -->
         <ion-card>
           <ion-card-header>
@@ -300,6 +352,20 @@ import type { Sheet } from 'write-excel-file/browser';
     .stock-status.warning { background: rgba(var(--ion-color-warning-rgb),0.15); color: var(--ion-color-warning); }
     .stock-status:not(.must-buy):not(.warning) { background: rgba(var(--ion-color-medium-rgb),0.12); color: var(--ion-color-medium); }
     .empty { opacity: 0.5; text-align: center; padding: 16px; }
+
+    /* Repeat customers */
+    .card-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .rc-filters { margin-top: 6px; }
+    .rc-period-tabs { display: flex; gap: 4px; }
+    .rc-tab { background: rgba(var(--ion-color-medium-rgb),0.12); border: none; border-radius: 14px; padding: 4px 12px; font-size: 0.78rem; cursor: pointer; color: var(--ion-text-color); opacity: 0.65; }
+    .rc-tab.active { background: var(--ion-color-primary); color: var(--ion-color-primary-contrast); opacity: 1; }
+    .limit-select { max-width: 90px; font-size: 0.8rem; --padding-start: 6px; --padding-end: 6px; }
+    .rc-table { display: grid; gap: 2px; }
+    .rc-row { display: grid; grid-template-columns: 28px 1fr 60px 110px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--ion-border-color); }
+    .rc-header { font-weight: 700; color: var(--ion-color-medium); font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--ion-color-medium); }
+    .rc-phone { font-size: 0.9rem; }
+    .rc-right { text-align: right; display: flex; justify-content: flex-end; align-items: center; }
+    .rc-spent { font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
   `],
 })
 export class ReportsPage implements ViewWillEnter {
@@ -309,6 +375,9 @@ export class ReportsPage implements ViewWillEnter {
   dateTo   = new Date().toISOString().substring(0, 10);
   data: ReportStats | null = null;
   loading = true;
+  repeatCustomers: RepeatCustomer[] = [];
+  repeatCustomerLimit = 10;
+  repeatCustomerPeriod: 'week' | 'month' | 'year' = 'year';
   downloadOutline = downloadOutline;
 
   readonly paymentMethods = [
@@ -317,6 +386,17 @@ export class ReportsPage implements ViewWillEnter {
     { value: 'card',  label: 'Card' },
     { value: 'gcash', label: 'GCash' },
   ];
+
+  readonly rcPeriods: { value: 'week' | 'month' | 'year'; label: string }[] = [
+    { value: 'week',  label: 'Week' },
+    { value: 'month', label: 'Month' },
+    { value: 'year',  label: 'Year' },
+  ];
+
+  setRcPeriod(value: 'week' | 'month' | 'year'): void {
+    this.repeatCustomerPeriod = value;
+    this.loadRepeatCustomers();
+  }
 
   constructor(
     private api: DatabaseService,
@@ -345,6 +425,14 @@ export class ReportsPage implements ViewWillEnter {
     this.api.getReportStats(this.period, this.paymentFilter, this.dateFrom, this.dateTo).subscribe({
       next: d => { this.data = d; this.loading = false; },
       error: () => { this.loading = false; },
+    });
+    this.loadRepeatCustomers();
+  }
+
+  loadRepeatCustomers(): void {
+    this.api.getTopRepeatCustomers(this.repeatCustomerLimit, this.repeatCustomerPeriod).subscribe({
+      next: c => { this.repeatCustomers = c; },
+      error: () => { this.repeatCustomers = []; },
     });
   }
 
@@ -454,6 +542,13 @@ export class ReportsPage implements ViewWillEnter {
           data: [
             ['Label', 'Revenue', 'Count'],
             ...d.breakdown.map(b => [b.label, b.revenue, b.count]),
+          ],
+        },
+        {
+          sheet: 'Repeat Customers',
+          data: [
+            ['Rank', 'Phone Number', 'Visits', 'Total Spent', 'Last Visit'],
+            ...this.repeatCustomers.map((c, i) => [i + 1, c.phone_number, c.visit_count, c.total_spent, c.last_visit]),
           ],
         },
       ];

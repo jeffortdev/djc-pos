@@ -10,9 +10,9 @@ import {
   ModalController, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline } from 'ionicons/icons';
+import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
-import { Transaction } from '../../models/models';
+import { Transaction, StockEntry } from '../../models/models';
 import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.component';
 
 @Component({
@@ -47,6 +47,10 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
         <ion-segment-button value="cash">
           <ion-icon name="wallet-outline"></ion-icon>
           <ion-label>Cash</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="stock">
+          <ion-icon name="cube-outline"></ion-icon>
+          <ion-label>Stock</ion-label>
         </ion-segment-button>
       </ion-segment>
 
@@ -139,6 +143,47 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
           </div>
         }
       }
+
+      @if (activeTab === 'stock') {
+        @if (stockLoading) {
+          <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
+        } @else if (stockHistory.length === 0) {
+          <div class="empty-state">
+            <ion-icon name="cube-outline"></ion-icon>
+            <p>No stock changes recorded.</p>
+          </div>
+        } @else {
+          <div class="tx-list">
+            @for (entry of stockHistory; track entry.id) {
+              <ion-card class="tx-card">
+                <ion-card-content>
+                  <div class="tx-row">
+                    <div class="tx-meta">
+                      <span class="tx-id">{{ entry.product_name }}</span>
+                      <span class="tx-date">{{ entry.created_at | date:'medium' }}</span>
+                      @if (entry.note) { <span class="tx-notes">{{ entry.note }}</span> }
+                    </div>
+                    <div class="tx-right">
+                      <span class="tx-total" [class.neg-amount]="entry.delta < 0">
+                        {{ entry.delta > 0 ? '+' : '' }}{{ entry.delta }} pcs
+                      </span>
+                      <ion-chip [color]="entry.delta > 0 ? 'success' : 'danger'" size="small">
+                        <ion-label>{{ entry.reason | titlecase }}</ion-label>
+                      </ion-chip>
+                      <span class="stock-after">Stock: {{ entry.stock_after }}</span>
+                    </div>
+                  </div>
+                </ion-card-content>
+              </ion-card>
+            }
+          </div>
+          @if (stockHasMore) {
+            <ion-infinite-scroll (ionInfinite)="loadMoreStock($event)">
+              <ion-infinite-scroll-content loadingText="Loading more..."></ion-infinite-scroll-content>
+            </ion-infinite-scroll>
+          }
+        }
+      }
     </ion-content>
   `,
   styles: [`
@@ -156,6 +201,7 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     .tx-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     .tx-total { font-weight: 700; font-size: 1rem; color: var(--ion-color-primary); }
     .neg-amount { color: var(--ion-color-danger) !important; }
+    .stock-after { font-size: 0.72rem; opacity: 0.6; }
     .tx-actions { display: flex; gap: 4px; margin-top: 8px; }
     .notify-badge { display: inline-flex; align-items: center; justify-content: center; background: var(--ion-color-success); color: #fff; border-radius: 50%; width: 16px; height: 16px; font-size: 0.65rem; font-weight: 700; margin-left: 4px; }
   `],
@@ -163,12 +209,16 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
 export class TransactionsPage implements OnInit, ViewWillEnter {
   transactions: Transaction[] = [];
   registerHistory: { id: number; amount: number; note: string; created_at: string }[] = [];
-  activeTab: 'sales' | 'cash' = 'sales';
+  stockHistory: StockEntry[] = [];
+  activeTab: 'sales' | 'cash' | 'stock' = 'sales';
   loading = true;
   cashLoading = true;
+  stockLoading = true;
   offset = 0;
   limit = 20;
   hasMore = false;
+  stockOffset = 0;
+  stockHasMore = false;
 
   constructor(
     private api: DatabaseService,
@@ -176,7 +226,7 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     private alertCtrl: AlertController,
     private toastCtrl: ToastController,
   ) {
-    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline });
+    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline });
   }
 
   ngOnInit(): void { }
@@ -189,6 +239,10 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     this.hasMore = false;
     this.loading = true;
     this.cashLoading = true;
+    this.stockLoading = true;
+    this.stockHistory = [];
+    this.stockOffset = 0;
+    this.stockHasMore = false;
     this.load();
   }
 
@@ -202,6 +256,11 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
       this.registerHistory = entries;
       this.cashLoading = false;
     });
+    this.api.getAllStockHistory(this.limit + 1, 0).subscribe(entries => {
+      this.stockHasMore = entries.length > this.limit;
+      this.stockHistory = entries.slice(0, this.limit);
+      this.stockLoading = false;
+    });
   }
 
   loadMore(event: CustomEvent): void {
@@ -213,12 +272,25 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     });
   }
 
+  loadMoreStock(event: CustomEvent): void {
+    this.stockOffset += this.limit;
+    this.api.getAllStockHistory(this.limit + 1, this.stockOffset).subscribe(entries => {
+      this.stockHasMore = entries.length > this.limit;
+      this.stockHistory = [...this.stockHistory, ...entries.slice(0, this.limit)];
+      (event.target as HTMLIonInfiniteScrollElement).complete();
+    });
+  }
+
   refresh(event: CustomEvent): void {
     this.transactions = [];
     this.offset = 0;
     this.hasMore = false;
     this.loading = true;
     this.cashLoading = true;
+    this.stockLoading = true;
+    this.stockHistory = [];
+    this.stockOffset = 0;
+    this.stockHasMore = false;
     this.api.getTransactions(this.limit + 1, 0).subscribe(txs => {
       this.hasMore = txs.length > this.limit;
       this.transactions = txs.slice(0, this.limit);
@@ -228,6 +300,11 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     this.api.getRegisterEntries().subscribe(entries => {
       this.registerHistory = entries;
       this.cashLoading = false;
+    });
+    this.api.getAllStockHistory(this.limit + 1, 0).subscribe(entries => {
+      this.stockHasMore = entries.length > this.limit;
+      this.stockHistory = entries.slice(0, this.limit);
+      this.stockLoading = false;
     });
   }
 

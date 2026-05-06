@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Platform } from '@ionic/angular/standalone';
 import { BehaviorSubject, Observable, from } from 'rxjs';
-import { DashboardStats, LaundryService, Product, Transaction, TransactionItem, DatabaseBackup, ReportStats, ReportBreakdown } from '../models/models';
+import { DashboardStats, LaundryService, Product, Transaction, TransactionItem, DatabaseBackup, ReportStats, ReportBreakdown, RepeatCustomer, StockEntry } from '../models/models';
 
 const DB_NAME = 'djcpos';
 
@@ -64,6 +64,16 @@ const SCHEMA = `
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS stock_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    delta       INTEGER NOT NULL,
+    reason      TEXT    NOT NULL DEFAULT 'adjustment',
+    note        TEXT    NOT NULL DEFAULT '',
+    stock_after INTEGER NOT NULL,
+    created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
+  );
 `;
 
 const SEED_SERVICES = [
@@ -80,11 +90,11 @@ const SEED_SERVICES = [
 ];
 
 const SEED_PRODUCTS = [
-  { name: 'Detergent Powder',      type: 'Cleaning Supplies', cost: 70,  price: 110, stock: 25, sort_order: 1 },
-  { name: 'Fabric Softener',       type: 'Cleaning Supplies', cost: 85,  price: 130, stock: 20, sort_order: 2 },
-  { name: 'Laundry Bag',           type: 'Accessories',      cost: 120, price: 185, stock: 30, sort_order: 3 },
-  { name: 'Stain Remover Spray',   type: 'Detergent',        cost: 140, price: 205, stock: 18, sort_order: 4 },
-  { name: 'Garment Protect Cover', type: 'Dry Goods',        cost: 95,  price: 150, stock: 22, sort_order: 5 },
+  { name: 'Detergent Powder',      type: 'Cleaning Supplies', cost: 70,  price: 110, stock: 0, sort_order: 1 },
+  { name: 'Fabric Softener',       type: 'Cleaning Supplies', cost: 85,  price: 130, stock: 0, sort_order: 2 },
+  { name: 'Laundry Bag',           type: 'Accessories',      cost: 120, price: 185, stock: 0, sort_order: 3 },
+  { name: 'Stain Remover Spray',   type: 'Detergent',        cost: 140, price: 205, stock: 0, sort_order: 4 },
+  { name: 'Garment Protect Cover', type: 'Dry Goods',        cost: 95,  price: 150, stock: 0, sort_order: 5 },
 ];
 
 // ── localStorage-based store for browser development ──────────────────────────
@@ -100,6 +110,8 @@ class LocalStore {
   saveProducts(v: Product[]) { this.write('lm_products', v); }
   getTransactions(): Transaction[] { return this.read<Transaction[]>('lm_transactions', []); }
   saveTransactions(v: Transaction[]) { this.write('lm_transactions', v); }
+  getStockHistory(): StockEntry[] { return this.read<StockEntry[]>('lm_stock_history', []); }
+  saveStockHistory(v: StockEntry[]) { this.write('lm_stock_history', v); }
   getRegisterEntries(): { id: number; amount: number; note: string; created_at: string }[] {
     return this.read('lm_register_entries', []);
   }
@@ -246,6 +258,22 @@ export class DatabaseService {
     if (!hasItemType) {
       await this.sqliteStore!.run("ALTER TABLE transaction_items ADD COLUMN item_type TEXT NOT NULL DEFAULT 'service'");
     }
+
+    // Migrate: create stock_history table if missing (added after initial release)
+    const histTbl = await this.sqliteStore!.query("SELECT name FROM sqlite_master WHERE type='table' AND name='stock_history'");
+    if (!histTbl.values?.length) {
+      await this.sqliteStore!.execute(`
+        CREATE TABLE IF NOT EXISTS stock_history (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+          delta       INTEGER NOT NULL,
+          reason      TEXT    NOT NULL DEFAULT 'adjustment',
+          note        TEXT    NOT NULL DEFAULT '',
+          stock_after INTEGER NOT NULL,
+          created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
+        )
+      `);
+    }
   }
 
   private async seedIfEmpty(): Promise<void> {
@@ -357,21 +385,38 @@ export class DatabaseService {
 
   createProduct(p: Partial<Product>): Observable<{ id: number }> {
     return from(this.ready.then(async () => {
+      const initialStock = p.stock ?? 0;
       if (!this.isNative) {
         const list = this.local.getProducts();
         const newItem: Product = {
           id: this.local.nextId(list), name: p.name!, type: p.type ?? 'Other', cost: p.cost ?? 0,
-          price: p.price ?? 0, stock: p.stock ?? 0, active: p.active ? 1 : 0, sort_order: p.sort_order ?? 0
+          price: p.price ?? 0, stock: initialStock, active: p.active ? 1 : 0, sort_order: p.sort_order ?? 0
         };
         list.push(newItem);
         this.local.saveProducts(list);
+        if (initialStock > 0) {
+          const history = this.local.getStockHistory();
+          history.push({
+            id: this.local.nextId(history), product_id: newItem.id, delta: initialStock,
+            reason: 'initial', note: 'Opening stock', stock_after: initialStock,
+            created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
+          });
+          this.local.saveStockHistory(history);
+        }
         return { id: newItem.id };
       }
       const r = await this.sqliteStore!.run(
         'INSERT INTO products (name, type, cost, price, stock, active, sort_order) VALUES (?,?,?,?,?,?,?)',
-        [p.name, p.type ?? 'Other', p.cost ?? 0, p.price ?? 0, p.stock ?? 0, p.active ? 1 : 0, p.sort_order ?? 0]
+        [p.name, p.type ?? 'Other', p.cost ?? 0, initialStock, initialStock, p.active ? 1 : 0, p.sort_order ?? 0]
       );
-      return { id: r.changes?.lastId ?? 0 };
+      const newId = r.changes?.lastId ?? 0;
+      if (initialStock > 0) {
+        await this.sqliteStore!.run(
+          'INSERT INTO stock_history (product_id, delta, reason, note, stock_after) VALUES (?,?,?,?,?)',
+          [newId, initialStock, 'initial', 'Opening stock', initialStock]
+        );
+      }
+      return { id: newId };
     }));
   }
 
@@ -401,15 +446,70 @@ export class DatabaseService {
     }));
   }
 
-  adjustProductStock(id: number, delta: number): Observable<{ ok: boolean }> {
+  adjustProductStock(id: number, delta: number, reason = 'adjustment', note = ''): Observable<{ ok: boolean }> {
     return from(this.ready.then(async () => {
       if (!this.isNative) {
-        const list = this.local.getProducts().map(x => x.id === id ? { ...x, stock: Math.max(0, x.stock + delta) } : x);
-        this.local.saveProducts(list);
+        const list = this.local.getProducts();
+        const product = list.find(x => x.id === id);
+        if (!product) return { ok: false };
+        const newStock = Math.max(0, product.stock + delta);
+        this.local.saveProducts(list.map(x => x.id === id ? { ...x, stock: newStock } : x));
+        const history = this.local.getStockHistory();
+        history.push({
+          id: this.local.nextId(history), product_id: id, delta,
+          reason, note, stock_after: newStock,
+          created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        });
+        this.local.saveStockHistory(history);
         return { ok: true };
       }
       await this.sqliteStore!.run('UPDATE products SET stock = MAX(0, stock + ?) WHERE id=?', [delta, id]);
+      const r = await this.sqliteStore!.query('SELECT stock FROM products WHERE id=?', [id]);
+      const stockAfter = r.values?.[0]?.stock ?? 0;
+      await this.sqliteStore!.run(
+        'INSERT INTO stock_history (product_id, delta, reason, note, stock_after) VALUES (?,?,?,?,?)',
+        [id, delta, reason, note, stockAfter]
+      );
       return { ok: true };
+    }));
+  }
+
+  getStockHistory(productId: number, limit = 20): Observable<StockEntry[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const products = this.local.getProducts();
+        return this.local.getStockHistory()
+          .filter(e => e.product_id === productId)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))
+          .slice(0, limit)
+          .map(e => ({ ...e, product_name: products.find(p => p.id === e.product_id)?.name ?? '' }));
+      }
+      const r = await this.sqliteStore!.query(
+        `SELECT sh.*, p.name AS product_name FROM stock_history sh
+         LEFT JOIN products p ON p.id = sh.product_id
+         WHERE sh.product_id=? ORDER BY sh.created_at DESC LIMIT ?`,
+        [productId, limit]
+      );
+      return (r.values ?? []) as StockEntry[];
+    }));
+  }
+
+  getAllStockHistory(limit = 50, offset = 0): Observable<StockEntry[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const products = this.local.getProducts();
+        const all = this.local.getStockHistory()
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))
+          .slice(offset, offset + limit);
+        return all.map(e => ({ ...e, product_name: products.find(p => p.id === e.product_id)?.name ?? '' }));
+      }
+      const r = await this.sqliteStore!.query(
+        `SELECT sh.*, p.name AS product_name FROM stock_history sh
+         LEFT JOIN products p ON p.id = sh.product_id
+         ORDER BY sh.created_at DESC LIMIT ? OFFSET ?`,
+        [limit, offset]
+      );
+      return (r.values ?? []) as StockEntry[];
     }));
   }
 
@@ -1057,5 +1157,100 @@ export class DatabaseService {
       stockLevels,
       paymentBreakdown: (pmR.values ?? []) as any,
     };
+  }
+
+  getTopRepeatCustomers(
+    limit: number,
+    period: 'today' | 'week' | 'month' | 'year' | 'custom' = 'week',
+    dateFrom?: string,
+    dateTo?: string,
+  ): Observable<RepeatCustomer[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) return this.buildRepeatCustomersLocal(limit, period, dateFrom, dateTo);
+      return this.buildRepeatCustomersSQLite(limit, period, dateFrom, dateTo);
+    }));
+  }
+
+  private buildRepeatCustomersLocal(
+    limit: number,
+    period: 'today' | 'week' | 'month' | 'year' | 'custom',
+    dateFrom?: string,
+    dateTo?: string,
+  ): RepeatCustomer[] {
+    const allTx = this.local.getTransactions();
+    const now = new Date();
+    let start: Date, end: Date;
+
+    if (period === 'today') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    } else if (period === 'week') {
+      end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+    } else if (period === 'month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    } else if (period === 'year') {
+      start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+      end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    } else {
+      start = dateFrom ? new Date(dateFrom + 'T00:00:00') : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      end   = dateTo   ? new Date(dateTo   + 'T23:59:59') : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    }
+
+    const map: Record<string, { visit_count: number; total_spent: number; last_visit: string }> = {};
+    for (const tx of allTx) {
+      if (!tx.phone_number) continue;
+      const d = new Date(tx.created_at.replace(' ', 'T'));
+      if (d < start || d > end) continue;
+      if (!map[tx.phone_number]) {
+        map[tx.phone_number] = { visit_count: 0, total_spent: 0, last_visit: tx.created_at };
+      }
+      map[tx.phone_number].visit_count += 1;
+      map[tx.phone_number].total_spent += tx.total;
+      if (tx.created_at > map[tx.phone_number].last_visit) {
+        map[tx.phone_number].last_visit = tx.created_at;
+      }
+    }
+
+    return Object.entries(map)
+      .map(([phone_number, v]) => ({ phone_number, ...v }))
+      .sort((a, b) => b.visit_count - a.visit_count || b.total_spent - a.total_spent)
+      .slice(0, limit);
+  }
+
+  private async buildRepeatCustomersSQLite(
+    limit: number,
+    period: 'today' | 'week' | 'month' | 'year' | 'custom',
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<RepeatCustomer[]> {
+    const today = new Date();
+    let where: string;
+
+    if (period === 'today') {
+      where = `date(created_at) = date('now','localtime')`;
+    } else if (period === 'week') {
+      where = `date(created_at) >= date('now','localtime','-6 days')`;
+    } else if (period === 'month') {
+      where = `strftime('%Y-%m',created_at) = strftime('%Y-%m','now','localtime')`;
+    } else if (period === 'year') {
+      where = `strftime('%Y',created_at) = strftime('%Y','now','localtime')`;
+    } else {
+      const from = dateFrom ?? today.toISOString().substring(0, 10);
+      const to   = dateTo   ?? today.toISOString().substring(0, 10);
+      where = `date(created_at) BETWEEN '${from}' AND '${to}'`;
+    }
+
+    const r = await this.sqliteStore!.query(
+      `SELECT phone_number, COUNT(*) AS visit_count, SUM(total) AS total_spent, MAX(created_at) AS last_visit
+       FROM transactions
+       WHERE phone_number != '' AND ${where}
+       GROUP BY phone_number
+       ORDER BY visit_count DESC, total_spent DESC
+       LIMIT ?`,
+      [limit],
+    );
+    return (r.values ?? []) as RepeatCustomer[];
   }
 }

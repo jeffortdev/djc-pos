@@ -55,6 +55,17 @@ export interface Transaction {
   items?: TransactionItem[];
 }
 
+export interface StockEntry {
+  id: number;
+  product_id: number;
+  product_name?: string;
+  delta: number;
+  reason: string;
+  note: string;
+  stock_after: number;
+  created_at: string;
+}
+
 export interface DatabaseBackup {
   version: number;
   services: LaundryService[];
@@ -62,6 +73,7 @@ export interface DatabaseBackup {
   transactions: Transaction[];
   registerEntries: { id: number; amount: number; note: string; created_at: string }[];
   settings: { key: string; value: string }[];
+  stockHistory?: StockEntry[];
 }
 
 export interface DashboardStats {
@@ -83,6 +95,13 @@ export interface ReportBreakdown {
   label: string;
   revenue: number;
   count: number;
+}
+
+export interface RepeatCustomer {
+  phone_number: string;
+  visit_count: number;
+  total_spent: number;
+  last_visit: string;
 }
 
 export interface ReportStats {
