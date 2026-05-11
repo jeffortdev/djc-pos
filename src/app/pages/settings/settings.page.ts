@@ -6,13 +6,14 @@ import { firstValueFrom } from 'rxjs';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonList, IonItem, IonLabel, IonInput, IonTextarea, IonButton, IonIcon, IonNote, IonRange,
+  IonSegment, IonSegmentButton,
   ToastController, AlertController
 } from '@ionic/angular/standalone';
 import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
-import { lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline } from 'ionicons/icons';
+import { lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
-import { BrandingService } from '../../services/branding.service';
+import { BrandingService, ColorTheme } from '../../services/branding.service';
 
 @Component({
   selector: 'app-settings',
@@ -21,6 +22,7 @@ import { BrandingService } from '../../services/branding.service';
     CommonModule, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonList, IonItem, IonLabel, IonInput, IonTextarea, IonButton, IonIcon, IonNote, IonRange,
+    IonSegment, IonSegmentButton,
   ],
   providers: [ToastController, AlertController],
   template: `
@@ -41,6 +43,30 @@ import { BrandingService } from '../../services/branding.service';
 
       <!-- Branding -->
       <div class="section-header">Branding</div>
+
+      <!-- Theme -->
+      <ion-list inset>
+        <ion-item>
+          <ion-icon name="laptop-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>Color Theme</ion-label>
+        </ion-item>
+        <ion-item lines="none" class="theme-segment-item">
+          <ion-segment [(ngModel)]="colorTheme" (ionChange)="saveTheme()" class="theme-segment">
+            <ion-segment-button value="system">
+              <ion-icon name="laptop-outline"></ion-icon>
+              <ion-label>System</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="light">
+              <ion-icon name="sunny-outline"></ion-icon>
+              <ion-label>Light</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="dark">
+              <ion-icon name="moon-outline"></ion-icon>
+              <ion-label>Dark</ion-label>
+            </ion-segment-button>
+          </ion-segment>
+        </ion-item>
+      </ion-list>
 
       <!-- App Title -->
       <ion-list inset>
@@ -70,7 +96,7 @@ import { BrandingService } from '../../services/branding.service';
           </ion-label>
         </ion-item>
         @if (logoPreview) {
-          <ion-item lines="none" class="preview-item">
+          <ion-item lines="none" class="preview-item logo-dark-preview">
             <img [src]="logoPreview" class="preview-img">
           </ion-item>
         }
@@ -257,6 +283,11 @@ import { BrandingService } from '../../services/branding.service';
     .btn-wrap { padding: 12px 16px; }
     .err-note { font-size: 0.82rem; padding: 4px 0; }
     .preview-item { --padding-start: 16px; }
+    .logo-dark-preview {
+      --background: #2a2a2a;
+      --inner-padding-top: 12px;
+      --inner-padding-bottom: 12px;
+    }
     .preview-img {
       max-height: 80px;
       max-width: 100%;
@@ -264,6 +295,23 @@ import { BrandingService } from '../../services/branding.service';
       border-radius: 8px;
       margin: 8px 0;
     }
+    .logo-preview-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin: 8px 0;
+      background-color: #2d2d2d;
+      background-image:
+        linear-gradient(45deg, #444 25%, transparent 25%),
+        linear-gradient(-45deg, #444 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #444 75%),
+        linear-gradient(-45deg, transparent 75%, #444 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+    .logo-preview-wrap .preview-img { margin: 0; background: none; }
     .watermark-thumb { max-height: 100px; }
     .action-row { --padding-start: 16px; padding: 6px 0; }
     .ml-8 { margin-left: 8px; }
@@ -271,6 +319,8 @@ import { BrandingService } from '../../services/branding.service';
     .opacity-pct { font-size: 0.82rem; min-width: 36px; text-align: right; opacity: 0.7; }
     .screen-hint { font-size: 0.75rem; opacity: 0.6; margin-top: 2px; }
     .screen-hint strong { opacity: 0.9; }
+    .theme-segment-item { --padding-start: 8px; --padding-end: 8px; padding: 8px 0; }
+    .theme-segment { width: 100%; }
   `],
 })
 export class SettingsPage {
@@ -289,6 +339,7 @@ export class SettingsPage {
   watermarkPreview = '';
   watermarkOpacityPct = 15;
   screenSizeHint   = '';
+  colorTheme: ColorTheme = 'system';
 
   private buildScreenHint(): string {
     const w = window.screen.width  * (window.devicePixelRatio || 1);
@@ -305,7 +356,7 @@ export class SettingsPage {
     private alertCtrl: AlertController,
     public branding: BrandingService,
   ) {
-    addIcons({ lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline });
+    addIcons({ lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline });
     this.screenSizeHint = this.buildScreenHint();
   }
 
@@ -325,6 +376,7 @@ export class SettingsPage {
     this.logoPreview       = logo || 'assets/logo.svg';
     this.watermarkPreview  = watermark;
     this.watermarkOpacityPct = Math.round((parseFloat(opacityStr) || 0.15) * 100);
+    this.colorTheme = (this.branding.colorTheme$.value as ColorTheme);
   }
 
   async requestPin(): Promise<boolean> {
@@ -396,6 +448,10 @@ export class SettingsPage {
   }
 
   // ── Branding methods ────────────────────────────────────────────────────────
+
+  async saveTheme(): Promise<void> {
+    await this.branding.saveColorTheme(this.colorTheme);
+  }
 
   async saveTitle(): Promise<void> {
     this.titleSaving = true;
