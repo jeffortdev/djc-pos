@@ -15,6 +15,7 @@ import {
   walletOutline, addCircleOutline, removeOutline
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
+import { BrandingService } from '../../services/branding.service';
 import { DashboardStats, ReportStats } from '../../models/models';
 
 @Component({
@@ -31,7 +32,12 @@ import { DashboardStats, ReportStats } from '../../models/models';
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
+          <div class="title-inner-wrap">
+            <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+            @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+              <span class="header-title">{{ branding.appTitle$ | async }}</span>
+            }
+          </div>
         </ion-title>
       </ion-toolbar>
     </ion-header>
@@ -235,7 +241,7 @@ export class DashboardPage implements OnInit, ViewWillEnter {
   summary: ReportStats | null = null;
   summaryLoading = false;
 
-  constructor(private api: DatabaseService, private alertCtrl: AlertController, private router: Router) {
+  constructor(private api: DatabaseService, private alertCtrl: AlertController, private router: Router, public branding: BrandingService) {
     addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline });
   }
 

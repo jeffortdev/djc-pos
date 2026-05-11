@@ -10,6 +10,7 @@ import {
 import { addIcons } from 'ionicons';
 import { addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
+import { BrandingService } from '../../services/branding.service';
 import { LaundryService } from '../../models/models';
 
 const CATEGORIES = ['wash', 'dry', 'press', 'dry-clean', 'special', 'standard'];
@@ -30,7 +31,12 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
+          <div class="title-inner-wrap">
+            <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+            @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+              <span class="header-title">{{ branding.appTitle$ | async }}</span>
+            }
+          </div>
         </ion-title>
         <ion-buttons slot="end">
           <ion-button (click)="startAdd()">
@@ -151,6 +157,7 @@ export class ServicesAdminPage implements OnInit {
     private api: DatabaseService,
     private alertCtrl: AlertController,
     private toastCtrl: ToastController,
+    public branding: BrandingService,
   ) {
     addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline });
   }

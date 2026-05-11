@@ -1,3 +1,6 @@
 <ion-app>
   <ion-router-outlet></ion-router-outlet>
+  <div class="watermark-overlay" *ngIf="watermarkSrc">
+    <img [src]="watermarkSrc" class="watermark-img" [style.opacity]="watermarkOpacity">
+  </div>
 </ion-app>

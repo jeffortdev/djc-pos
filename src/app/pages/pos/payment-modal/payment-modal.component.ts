@@ -12,6 +12,7 @@ import {
   checkmarkDoneOutline, closeOutline, swapHorizontalOutline
 } from 'ionicons/icons';
 import { CartItem } from '../../../models/models';
+import { BrandingService } from '../../../services/branding.service';
 
 export interface PaymentResult {
   payment_method: string;
@@ -40,7 +41,12 @@ export interface PaymentResult {
           </ion-button>
         </ion-buttons>
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
+          <div class="title-inner-wrap">
+            <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+            @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+              <span class="header-title">{{ branding.appTitle$ | async }}</span>
+            }
+          </div>
         </ion-title>
       </ion-toolbar>
     </ion-header>
@@ -146,7 +152,7 @@ export class PaymentModalComponent implements OnInit {
   phoneNumber = '';
   notes = '';
 
-  constructor(private modalCtrl: ModalController) {
+  constructor(private modalCtrl: ModalController, public branding: BrandingService) {
     addIcons({ cashOutline, cardOutline, phonePortraitOutline, checkmarkDoneOutline, closeOutline, swapHorizontalOutline });
   }
 

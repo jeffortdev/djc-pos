@@ -12,6 +12,7 @@ import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
 import { trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
+import { BrandingService } from '../../services/branding.service';
 import { ReportStats, RepeatCustomer } from '../../models/models';
 import writeXlsxFile from 'write-excel-file/browser';
 import type { Sheet } from 'write-excel-file/browser';
@@ -29,7 +30,12 @@ import type { Sheet } from 'write-excel-file/browser';
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
+          <div class="title-inner-wrap">
+            <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+            @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+              <span class="header-title">{{ branding.appTitle$ | async }}</span>
+            }
+          </div>
         </ion-title>
         <ion-buttons slot="end">
           <ion-button fill="clear" (click)="exportReport()">
@@ -402,6 +408,7 @@ export class ReportsPage implements ViewWillEnter {
     private api: DatabaseService,
     private alertCtrl: AlertController,
     private toastCtrl: ToastController,
+    public branding: BrandingService,
   ) {
     addIcons({ trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline });
   }

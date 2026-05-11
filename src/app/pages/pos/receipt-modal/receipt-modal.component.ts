@@ -7,6 +7,7 @@ import {
 import { addIcons } from 'ionicons';
 import { closeOutline, printOutline, waterOutline } from 'ionicons/icons';
 import { Transaction } from '../../../models/models';
+import { BrandingService } from '../../../services/branding.service';
 
 @Component({
   selector: 'app-receipt-modal',
@@ -25,7 +26,12 @@ import { Transaction } from '../../../models/models';
           </ion-button>
         </ion-buttons>
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
+          <div class="title-inner-wrap">
+            <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+            @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+              <span class="header-title">{{ branding.appTitle$ | async }}</span>
+            }
+          </div>
         </ion-title>
       </ion-toolbar>
     </ion-header>
@@ -33,7 +39,7 @@ import { Transaction } from '../../../models/models';
     <ion-content>
       <div class="receipt">
         <div class="receipt-header">
-          <img src="assets/logo-color.svg" alt="DJC POS" class="receipt-logo-img">
+          <img [src]="branding.logoSrc$ | async" alt="logo" class="receipt-logo-img">
           <p class="receipt-date">{{ tx.created_at | date:'medium' }}</p>
           <p class="receipt-id"># {{ tx.id }}</p>
         </div>
@@ -115,7 +121,7 @@ import { Transaction } from '../../../models/models';
 export class ReceiptModalComponent {
   @Input() tx!: Transaction;
 
-  constructor(private modalCtrl: ModalController) {
+  constructor(private modalCtrl: ModalController, public branding: BrandingService) {
     addIcons({ closeOutline, printOutline, waterOutline });
   }
 

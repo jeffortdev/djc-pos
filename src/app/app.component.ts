@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { AlertController } from '@ionic/angular';
 import { DatabaseService } from './services/database.service';
+import { BrandingService } from './services/branding.service';
 
 @Component({
   selector: 'app-root',
@@ -9,7 +10,14 @@ import { DatabaseService } from './services/database.service';
   standalone: false,
 })
 export class AppComponent {
-  constructor(private api: DatabaseService, private alertCtrl: AlertController) {
+  watermarkSrc    = '';
+  watermarkOpacity = 0.15;
+
+  constructor(
+    private api: DatabaseService,
+    private alertCtrl: AlertController,
+    public branding: BrandingService,
+  ) {
     this.api.recovery$.subscribe(async msg => {
       if (!msg) {
         return;
@@ -21,5 +29,7 @@ export class AppComponent {
       });
       await alert.present();
     });
+    this.branding.watermarkSrc$.subscribe(src => (this.watermarkSrc = src));
+    this.branding.watermarkOpacity$.subscribe(op => (this.watermarkOpacity = op));
   }
 }

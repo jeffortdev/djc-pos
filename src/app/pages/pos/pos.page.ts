@@ -19,6 +19,7 @@ import {
   cartOutline, closeOutline
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
+import { BrandingService } from '../../services/branding.service';
 import { LaundryService, Product, CartItem } from '../../models/models';
 import { PaymentModalComponent } from './payment-modal/payment-modal.component';
 import { ReceiptModalComponent } from './receipt-modal/receipt-modal.component';
@@ -46,7 +47,12 @@ const CATEGORY_ICONS: Record<string, string> = {
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
+          <div class="title-inner-wrap">
+            <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+            @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+              <span class="header-title">{{ branding.appTitle$ | async }}</span>
+            }
+          </div>
         </ion-title>
         <!-- Cart icon button: only visible on phones -->
         <ion-buttons slot="end" class="mobile-cart-btn">
@@ -338,6 +344,7 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
     private router: Router,
     private modalCtrl: ModalController,
     private toastCtrl: ToastController,
+    public branding: BrandingService,
   ) {
     addIcons({
       shirtOutline, waterOutline, flameOutline, sparklesOutline, starOutline,

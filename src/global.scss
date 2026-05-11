@@ -43,6 +43,13 @@ ion-toolbar ion-title {
   padding-inline: 0;
 }
 
+ion-toolbar ion-title .title-inner-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
 .header-logo {
   height: 44px;
   max-height: 100%;
@@ -50,6 +57,16 @@ ion-toolbar ion-title {
   display: block;
   object-fit: contain;
   margin-left: 10px;
+}
+
+.header-title {
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .receipt-logo-img {

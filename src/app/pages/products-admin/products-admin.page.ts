@@ -14,6 +14,7 @@ import {
   addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
+import { BrandingService } from '../../services/branding.service';
 import { Product, StockEntry } from '../../models/models';
 
 const PRODUCT_TYPES = ['Dry Goods', 'Cleaning Supplies', 'Detergent', 'Accessories', 'Other'];
@@ -34,7 +35,12 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
+          <div class="title-inner-wrap">
+            <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+            @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+              <span class="header-title">{{ branding.appTitle$ | async }}</span>
+            }
+          </div>
         </ion-title>
         <ion-buttons slot="end">
           <ion-button (click)="startAdd()">
@@ -287,6 +293,7 @@ export class ProductsAdminPage implements OnInit {
     private api: DatabaseService,
     private alertCtrl: AlertController,
     private toastCtrl: ToastController,
+    public branding: BrandingService,
   ) {
     addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline,
                addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline });

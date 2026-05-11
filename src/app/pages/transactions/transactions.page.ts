@@ -12,6 +12,7 @@ import {
 import { addIcons } from 'ionicons';
 import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
+import { BrandingService } from '../../services/branding.service';
 import { Transaction, StockEntry } from '../../models/models';
 import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.component';
 
@@ -29,7 +30,12 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     <ion-header>
       <ion-toolbar color="primary">
         <ion-title>
-          <img src="assets/logo.svg" alt="DJC Point of Sale" class="header-logo">
+          <div class="title-inner-wrap">
+            <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+            @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+              <span class="header-title">{{ branding.appTitle$ | async }}</span>
+            }
+          </div>
         </ion-title>
       </ion-toolbar>
     </ion-header>
@@ -225,6 +231,7 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     private modalCtrl: ModalController,
     private alertCtrl: AlertController,
     private toastCtrl: ToastController,
+    public branding: BrandingService,
   ) {
     addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline });
   }
