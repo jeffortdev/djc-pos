@@ -36,6 +36,7 @@ const SCHEMA = `
     payment_method  TEXT    NOT NULL DEFAULT 'cash',
     amount_tendered REAL    NOT NULL DEFAULT 0,
     change_due      REAL    NOT NULL DEFAULT 0,
+    customer_name   TEXT    NOT NULL DEFAULT '',
     phone_number    TEXT    NOT NULL DEFAULT '',
     notify_count    INTEGER NOT NULL DEFAULT 0,
     notes           TEXT    NOT NULL DEFAULT ''
@@ -251,6 +252,11 @@ export class DatabaseService {
     const hasNotifyCount = (cols.values ?? []).some((c: { name: string }) => c.name === 'notify_count');
     if (!hasNotifyCount) {
       await this.sqliteStore!.run('ALTER TABLE transactions ADD COLUMN notify_count INTEGER NOT NULL DEFAULT 0');
+    }
+
+    const hasCustomerName = (cols.values ?? []).some((c: { name: string }) => c.name === 'customer_name');
+    if (!hasCustomerName) {
+      await this.sqliteStore!.run("ALTER TABLE transactions ADD COLUMN customer_name TEXT NOT NULL DEFAULT ''");
     }
 
     const itemCols = await this.sqliteStore!.query("PRAGMA table_info(transaction_items)");
@@ -541,15 +547,56 @@ export class DatabaseService {
     }));
   }
 
+  searchCustomers(query: string): Observable<{ name: string; phone_number: string }[]> {
+    return from(this.ready.then(async () => {
+      const q = query.toLowerCase();
+      if (!this.isNative) {
+        const seen = new Map<string, { name: string; phone_number: string }>();
+        const all = [...this.local.getTransactions()]
+          .sort((a, b) => b.created_at.localeCompare(a.created_at));
+        for (const tx of all) {
+          if (!tx.customer_name) continue;
+          const key = tx.customer_name.toLowerCase();
+          if (key.includes(q) && !seen.has(key)) {
+            seen.set(key, { name: tx.customer_name, phone_number: tx.phone_number ?? '' });
+          }
+        }
+        return Array.from(seen.values()).slice(0, 8);
+      }
+      try {
+        const r = await this.sqliteStore!.query(
+          `SELECT customer_name, phone_number
+           FROM transactions t1
+           WHERE customer_name != '' AND LOWER(customer_name) LIKE ?
+             AND created_at = (
+               SELECT MAX(t2.created_at) FROM transactions t2
+               WHERE LOWER(t2.customer_name) = LOWER(t1.customer_name)
+             )
+           ORDER BY customer_name
+           LIMIT 8`,
+          [`%${q}%`]
+        );
+        return (r.values ?? []).map((row: any) => ({
+          name: row.customer_name as string,
+          phone_number: row.phone_number as string,
+        }));
+      } catch {
+        // Column not yet present on a very old schema — return empty gracefully
+        return [];
+      }
+    }));
+  }
+
   createTransaction(payload: {
     items: { service_id: number; service_name: string; unit: string; price: number; quantity: number; item_type: 'service' | 'product' }[];
     payment_method: string;
     amount_tendered: number;
+    customer_name?: string;
     phone_number?: string;
     notes?: string;
   }): Observable<Transaction> {
     return from(this.ready.then(async () => {
-      const { items, payment_method, amount_tendered, notes, phone_number } = payload;
+      const { items, payment_method, amount_tendered, notes, phone_number, customer_name } = payload;
       const subtotal = parseFloat(items.reduce((s, i) => s + i.price * i.quantity, 0).toFixed(2));
       const total = subtotal;
       const change_due = parseFloat(Math.max(0, amount_tendered - total).toFixed(2));
@@ -562,7 +609,7 @@ export class DatabaseService {
           id, created_at: now, subtotal, tax: 0, total,
           payment_method: payment_method ?? 'cash',
           amount_tendered: amount_tendered ?? total,
-          change_due, phone_number: phone_number ?? '', notes: notes ?? '',
+          change_due, customer_name: customer_name ?? '', phone_number: phone_number ?? '', notes: notes ?? '',
           items: items.map((item, i) => ({
             id: i + 1, transaction_id: id,
             service_id: item.service_id, service_name: item.service_name,
@@ -577,9 +624,9 @@ export class DatabaseService {
       }
 
       const txR = await this.sqliteStore!.run(
-        `INSERT INTO transactions (subtotal, tax, total, payment_method, amount_tendered, change_due, phone_number, notes)
-         VALUES (?,?,?,?,?,?,?,?)`,
-        [subtotal, 0, total, payment_method ?? 'cash', amount_tendered ?? total, change_due, phone_number ?? '', notes ?? '']
+        `INSERT INTO transactions (subtotal, tax, total, payment_method, amount_tendered, change_due, customer_name, phone_number, notes)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [subtotal, 0, total, payment_method ?? 'cash', amount_tendered ?? total, change_due, customer_name ?? '', phone_number ?? '', notes ?? '']
       );
       const txId = txR.changes?.lastId ?? 0;
       for (const item of items) {

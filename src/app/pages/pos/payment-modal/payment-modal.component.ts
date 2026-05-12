@@ -13,11 +13,13 @@ import {
 } from 'ionicons/icons';
 import { CartItem } from '../../../models/models';
 import { BrandingService } from '../../../services/branding.service';
+import { DatabaseService } from '../../../services/database.service';
 
 export interface PaymentResult {
   payment_method: string;
   amount_tendered: number;
   change_due: number;
+  customer_name: string;
   phone_number: string;
   notes: string;
 }
@@ -52,6 +54,32 @@ export interface PaymentResult {
     </ion-header>
 
     <ion-content>
+      <!-- Customer name — first field with autocomplete -->
+      <div class="name-wrap">
+        <ion-list>
+          <ion-item>
+            <ion-label position="stacked">Customer Name (optional)</ion-label>
+            <ion-input
+              [(ngModel)]="customerName"
+              (ngModelChange)="onNameChange($event)"
+              (ionBlur)="suggestions = []"
+              placeholder="e.g. Juan dela Cruz"
+              autocomplete="off">
+            </ion-input>
+          </ion-item>
+        </ion-list>
+        @if (suggestions.length > 0) {
+          <div class="suggestions">
+            @for (s of suggestions; track s.name) {
+              <div class="suggestion-item" (mousedown)="selectSuggestion(s)">
+                <span class="s-name">{{ s.name }}</span>
+                @if (s.phone_number) { <span class="s-phone">{{ s.phone_number }}</span> }
+              </div>
+            }
+          </div>
+        }
+      </div>
+
       <!-- Readonly order summary -->
       <ion-list>
         @for (item of cart; track item.service_id) {
@@ -118,7 +146,7 @@ export interface PaymentResult {
         </ion-item>
         <ion-item>
           <ion-label position="stacked">Notes (optional)</ion-label>
-          <ion-input [(ngModel)]="notes" placeholder="Customer name, special instructions..."></ion-input>
+          <ion-input [(ngModel)]="notes" placeholder="Special instructions..."></ion-input>
         </ion-item>
       </ion-list>
 
@@ -131,6 +159,12 @@ export interface PaymentResult {
     </ion-content>
   `,
   styles: [`
+    .name-wrap { position: relative; }
+    .suggestions { position: absolute; left: 0; right: 0; z-index: 100; background: var(--ion-background-color, #fff); border: 1px solid var(--ion-border-color, #ddd); border-top: none; border-radius: 0 0 8px 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); max-height: 200px; overflow-y: auto; }
+    .suggestion-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; cursor: pointer; }
+    .suggestion-item:active { background: var(--ion-color-light); }
+    .s-name { font-weight: 500; }
+    .s-phone { font-size: 0.8rem; opacity: 0.6; }
     .summary-right { display: flex; gap: 10px; align-items: center; }
     .summary-qty { opacity: 0.55; font-size: 0.82rem; }
     .summary-price { font-weight: 600; font-size: 0.9rem; }
@@ -149,15 +183,38 @@ export class PaymentModalComponent implements OnInit {
 
   method = 'cash';
   tendered = 0;
+  customerName = '';
   phoneNumber = '';
   notes = '';
+  suggestions: { name: string; phone_number: string }[] = [];
 
-  constructor(private modalCtrl: ModalController, public branding: BrandingService) {
+  constructor(
+    private modalCtrl: ModalController,
+    public branding: BrandingService,
+    private db: DatabaseService,
+  ) {
     addIcons({ cashOutline, cardOutline, phonePortraitOutline, checkmarkDoneOutline, closeOutline, swapHorizontalOutline });
   }
 
   ngOnInit(): void {
     this.tendered = this.total;
+  }
+
+  onNameChange(value: string): void {
+    const q = (value ?? '').trim();
+    if (q.length < 2) {
+      this.suggestions = [];
+      return;
+    }
+    this.db.searchCustomers(q).subscribe(results => {
+      this.suggestions = results;
+    });
+  }
+
+  selectSuggestion(s: { name: string; phone_number: string }): void {
+    this.customerName = s.name;
+    this.phoneNumber = s.phone_number;
+    this.suggestions = [];
   }
 
   get total(): number {
@@ -189,6 +246,7 @@ export class PaymentModalComponent implements OnInit {
       payment_method: this.method,
       amount_tendered: this.method === 'cash' ? this.tendered : this.total,
       change_due: this.method === 'cash' ? this.change : 0,
+      customer_name: this.customerName,
       phone_number: this.phoneNumber,
       notes: this.notes,
     };

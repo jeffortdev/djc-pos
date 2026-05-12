@@ -528,6 +528,7 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
       items: this.cart,
       payment_method: data.result.payment_method,
       amount_tendered: data.result.amount_tendered,
+      customer_name: data.result.customer_name,
       phone_number: data.result.phone_number,
       notes: data.result.notes,
     }).subscribe({

@@ -79,6 +79,7 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
                     <div class="tx-meta">
                       <span class="tx-id"># {{ tx.id }}</span>
                       <span class="tx-date">{{ tx.created_at | date:'medium' }}</span>
+                      @if (tx.customer_name) { <span class="tx-customer">{{ tx.customer_name }}</span> }
                       @if (tx.notes) { <span class="tx-notes">{{ tx.notes }}</span> }
                     </div>
                     <div class="tx-right">
@@ -204,6 +205,7 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     .tx-id { font-weight: 700; font-size: 0.95rem; }
     .tx-date { font-size: 0.78rem; opacity: 0.6; }
     .tx-notes { font-size: 0.78rem; font-style: italic; opacity: 0.7; }
+    .tx-customer { font-size: 0.85rem; font-weight: 600; }
     .tx-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     .tx-total { font-weight: 700; font-size: 1rem; color: var(--ion-color-primary); }
     .neg-amount { color: var(--ion-color-danger) !important; }

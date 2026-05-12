@@ -49,6 +49,7 @@ export interface Transaction {
   payment_method: string;
   amount_tendered: number;
   change_due: number;
+  customer_name?: string;
   phone_number?: string;
   notes: string;
   notify_count?: number;

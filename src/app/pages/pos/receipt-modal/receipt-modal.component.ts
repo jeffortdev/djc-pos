@@ -42,6 +42,9 @@ import { BrandingService } from '../../../services/branding.service';
           <img [src]="branding.logoSrc$ | async" alt="logo" class="receipt-logo-img">
           <p class="receipt-date">{{ tx.created_at | date:'medium' }}</p>
           <p class="receipt-id"># {{ tx.id }}</p>
+          @if (tx.customer_name) {
+            <p class="receipt-customer">{{ tx.customer_name }}</p>
+          }
         </div>
 
         <div class="divider"></div>
@@ -103,6 +106,7 @@ import { BrandingService } from '../../../services/branding.service';
     .receipt { padding: 16px; max-width: 400px; margin: 0 auto; }
     .receipt-header { text-align: center; padding: 8px 0 16px; }
     .receipt-date, .receipt-id { margin: 2px 0; font-size: 0.8rem; opacity: 0.6; }
+    .receipt-customer { margin: 6px 0 0; font-size: 0.95rem; font-weight: 600; }
     .divider { height: 1px; background: var(--ion-border-color); margin: 8px 0; }
     .receipt-items { padding: 12px 0; display: flex; flex-direction: column; gap: 8px; }
     .receipt-item { display: flex; align-items: center; justify-content: space-between; }
