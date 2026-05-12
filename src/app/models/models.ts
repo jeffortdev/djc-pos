@@ -99,6 +99,7 @@ export interface ReportBreakdown {
 }
 
 export interface RepeatCustomer {
+  customer_name: string;
   phone_number: string;
   visit_count: number;
   total_spent: number;

@@ -242,7 +242,7 @@ import { BrandingService, ColorTheme } from '../../services/branding.service';
         </ion-item>
         <ion-item lines="none">
           <ion-note>
-            Use <strong>{{ '{{order_id}}' }}</strong> for the order number.
+            Use <strong>{{ '{{order_id}}' }}</strong> for the order number and <strong>{{ '{{customer_name}}' }}</strong> for the customer name.
           </ion-note>
         </ion-item>
       </ion-list>

@@ -382,7 +382,9 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
   async sendPickupSms(tx: Transaction): Promise<void> {
     const defaultSms = `Hi! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!`;
     const template = await firstValueFrom(this.api.getSetting('sms_message', defaultSms));
-    const message = template.replace(/{{\s*order_id\s*}}/gi, String(tx.id));
+    const message = template
+      .replace(/{{\s*order_id\s*}}/gi, String(tx.id))
+      .replace(/{{\s*customer_name\s*}}/gi, tx.customer_name ?? '');
     window.open(`sms:${tx.phone_number}?body=${encodeURIComponent(message)}`, '_system');
     this.api.incrementNotifyCount(tx.id).subscribe(() => {
       tx.notify_count = (tx.notify_count ?? 0) + 1;

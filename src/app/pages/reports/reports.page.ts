@@ -6,7 +6,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonCardHeader, IonCardTitle, IonSegment, IonSegmentButton, IonLabel,
   IonIcon, IonSpinner, IonRefresher, IonRefresherContent, IonChip,
-  IonButtons, IonButton, IonSelect, IonSelectOption, AlertController, ToastController
+  IonButtons, IonButton, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
@@ -24,7 +24,7 @@ import type { Sheet } from 'write-excel-file/browser';
     CommonModule, CurrencyPipe, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
     IonCardHeader, IonCardTitle, IonSegment, IonSegmentButton, IonLabel,
-    IonIcon, IonButtons, IonButton, IonSelect, IonSelectOption, IonSpinner, IonRefresher, IonRefresherContent, IonChip,
+    IonIcon, IonButtons, IonButton, IonSpinner, IonRefresher, IonRefresherContent, IonChip,
   ],
   template: `
     <ion-header>
@@ -232,15 +232,16 @@ import type { Sheet } from 'write-excel-file/browser';
                   </button>
                 }
               </div>
-              <ion-select
-                [(ngModel)]="repeatCustomerLimit"
-                (ionChange)="loadRepeatCustomers()"
-                interface="popover"
-                class="limit-select">
-                <ion-select-option [value]="5">Top 5</ion-select-option>
-                <ion-select-option [value]="10">Top 10</ion-select-option>
-                <ion-select-option [value]="20">Top 20</ion-select-option>
-              </ion-select>
+              <div class="limit-input-wrap">
+                <span class="limit-label">Top</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="500"
+                  [(ngModel)]="repeatCustomerLimit"
+                  (change)="loadRepeatCustomers()"
+                  class="limit-input" />
+              </div>
             </div>
           </ion-card-header>
           <ion-card-content>
@@ -250,14 +251,17 @@ import type { Sheet } from 'write-excel-file/browser';
               <div class="rc-table">
                 <div class="rc-row rc-header">
                   <span>#</span>
-                  <span>Phone</span>
+                  <span>Customer</span>
                   <span class="rc-right">Visits</span>
                   <span class="rc-right">Total Spent</span>
                 </div>
                 @for (c of repeatCustomers; track c.phone_number; let i = $index) {
                   <div class="rc-row">
                     <span class="rank">#{{ i + 1 }}</span>
-                    <span class="rc-phone">{{ c.phone_number }}</span>
+                    <span class="rc-customer">
+                      @if (c.customer_name) { <span class="rc-name">{{ c.customer_name }}</span> }
+                      @if (c.phone_number) { <span class="rc-phone">{{ c.phone_number }}</span> }
+                    </span>
                     <span class="rc-right">
                       <ion-chip color="tertiary" size="small"><ion-label>{{ c.visit_count }}x</ion-label></ion-chip>
                     </span>
@@ -365,11 +369,15 @@ import type { Sheet } from 'write-excel-file/browser';
     .rc-period-tabs { display: flex; gap: 4px; }
     .rc-tab { background: rgba(var(--ion-color-medium-rgb),0.12); border: none; border-radius: 14px; padding: 4px 12px; font-size: 0.78rem; cursor: pointer; color: var(--ion-text-color); opacity: 0.65; }
     .rc-tab.active { background: var(--ion-color-primary); color: var(--ion-color-primary-contrast); opacity: 1; }
-    .limit-select { max-width: 90px; font-size: 0.8rem; --padding-start: 6px; --padding-end: 6px; }
+    .limit-input-wrap { display: flex; align-items: center; gap: 4px; }
+    .limit-label { font-size: 0.8rem; color: var(--ion-color-medium); }
+    .limit-input { width: 52px; border: 1px solid var(--ion-border-color); border-radius: 8px; padding: 4px 6px; font-size: 0.85rem; text-align: center; background: var(--ion-background-color); color: var(--ion-text-color); }
     .rc-table { display: grid; gap: 2px; }
     .rc-row { display: grid; grid-template-columns: 28px 1fr 60px 110px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--ion-border-color); }
     .rc-header { font-weight: 700; color: var(--ion-color-medium); font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--ion-color-medium); }
-    .rc-phone { font-size: 0.9rem; }
+    .rc-customer { display: flex; flex-direction: column; gap: 1px; }
+    .rc-name { font-size: 0.9rem; font-weight: 600; }
+    .rc-phone { font-size: 0.78rem; opacity: 0.6; }
     .rc-right { text-align: right; display: flex; justify-content: flex-end; align-items: center; }
     .rc-spent { font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
   `],

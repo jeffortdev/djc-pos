@@ -555,29 +555,32 @@ export class DatabaseService {
         const all = [...this.local.getTransactions()]
           .sort((a, b) => b.created_at.localeCompare(a.created_at));
         for (const tx of all) {
-          if (!tx.customer_name) continue;
-          const key = tx.customer_name.toLowerCase();
+          const name = tx.customer_name || tx.notes || '';
+          if (!name) continue;
+          const key = name.toLowerCase();
           if (key.includes(q) && !seen.has(key)) {
-            seen.set(key, { name: tx.customer_name, phone_number: tx.phone_number ?? '' });
+            seen.set(key, { name, phone_number: tx.phone_number ?? '' });
           }
         }
         return Array.from(seen.values()).slice(0, 8);
       }
       try {
         const r = await this.sqliteStore!.query(
-          `SELECT customer_name, phone_number
+          `SELECT COALESCE(NULLIF(customer_name,''), NULLIF(notes,'')) AS name, phone_number
            FROM transactions t1
-           WHERE customer_name != '' AND LOWER(customer_name) LIKE ?
+           WHERE COALESCE(NULLIF(customer_name,''), NULLIF(notes,'')) IS NOT NULL
+             AND LOWER(COALESCE(NULLIF(customer_name,''), NULLIF(notes,''))) LIKE ?
              AND created_at = (
                SELECT MAX(t2.created_at) FROM transactions t2
-               WHERE LOWER(t2.customer_name) = LOWER(t1.customer_name)
+               WHERE LOWER(COALESCE(NULLIF(t2.customer_name,''), NULLIF(t2.notes,'')))
+                   = LOWER(COALESCE(NULLIF(t1.customer_name,''), NULLIF(t1.notes,'')))
              )
-           ORDER BY customer_name
+           ORDER BY name
            LIMIT 8`,
           [`%${q}%`]
         );
         return (r.values ?? []).map((row: any) => ({
-          name: row.customer_name as string,
+          name: row.name as string,
           phone_number: row.phone_number as string,
         }));
       } catch {
@@ -1245,18 +1248,19 @@ export class DatabaseService {
       end   = dateTo   ? new Date(dateTo   + 'T23:59:59') : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     }
 
-    const map: Record<string, { visit_count: number; total_spent: number; last_visit: string }> = {};
+    const map: Record<string, { customer_name: string; visit_count: number; total_spent: number; last_visit: string }> = {};
     for (const tx of allTx) {
       if (!tx.phone_number) continue;
       const d = new Date(tx.created_at.replace(' ', 'T'));
       if (d < start || d > end) continue;
       if (!map[tx.phone_number]) {
-        map[tx.phone_number] = { visit_count: 0, total_spent: 0, last_visit: tx.created_at };
+        map[tx.phone_number] = { customer_name: tx.customer_name ?? '', visit_count: 0, total_spent: 0, last_visit: tx.created_at };
       }
       map[tx.phone_number].visit_count += 1;
       map[tx.phone_number].total_spent += tx.total;
       if (tx.created_at > map[tx.phone_number].last_visit) {
         map[tx.phone_number].last_visit = tx.created_at;
+        if (tx.customer_name) map[tx.phone_number].customer_name = tx.customer_name;
       }
     }
 
@@ -1290,14 +1294,18 @@ export class DatabaseService {
     }
 
     const r = await this.sqliteStore!.query(
-      `SELECT phone_number, COUNT(*) AS visit_count, SUM(total) AS total_spent, MAX(created_at) AS last_visit
-       FROM transactions
+      `SELECT phone_number,
+              (SELECT customer_name FROM transactions t2
+               WHERE t2.phone_number = t1.phone_number AND t2.customer_name != ''
+               ORDER BY t2.created_at DESC LIMIT 1) AS customer_name,
+              COUNT(*) AS visit_count, SUM(total) AS total_spent, MAX(created_at) AS last_visit
+       FROM transactions t1
        WHERE phone_number != '' AND ${where}
        GROUP BY phone_number
        ORDER BY visit_count DESC, total_spent DESC
        LIMIT ?`,
       [limit],
     );
-    return (r.values ?? []) as RepeatCustomer[];
+    return (r.values ?? []).map((row: any) => ({ ...row, customer_name: row.customer_name ?? '' })) as RepeatCustomer[];
   }
 }
