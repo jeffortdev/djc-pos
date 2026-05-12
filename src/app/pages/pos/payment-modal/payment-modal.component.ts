@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon,
   IonList, IonItem, IonLabel, IonSegment, IonSegmentButton, IonInput,
-  IonButtons, ModalController
+  IonButtons, ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -33,7 +33,7 @@ export interface PaymentResult {
     IonList, IonItem, IonLabel, IonSegment, IonSegmentButton, IonInput,
     IonButtons,
   ],
-  providers: [ModalController],
+  providers: [ModalController, AlertController],
   template: `
     <ion-header>
       <ion-toolbar color="primary">
@@ -142,7 +142,7 @@ export interface PaymentResult {
       <ion-list>
         <ion-item>
           <ion-label position="stacked">Phone Number (optional)</ion-label>
-          <ion-input type="tel" [(ngModel)]="phoneNumber" placeholder="e.g. 09171234567"></ion-input>
+          <ion-input type="tel" [(ngModel)]="phoneNumber" (ionBlur)="onPhoneBlur()" placeholder="e.g. 09171234567"></ion-input>
         </ion-item>
         <ion-item>
           <ion-label position="stacked">Notes (optional)</ion-label>
@@ -192,6 +192,7 @@ export class PaymentModalComponent implements OnInit {
     private modalCtrl: ModalController,
     public branding: BrandingService,
     private db: DatabaseService,
+    private alertCtrl: AlertController,
   ) {
     addIcons({ cashOutline, cardOutline, phonePortraitOutline, checkmarkDoneOutline, closeOutline, swapHorizontalOutline });
   }
@@ -208,6 +209,32 @@ export class PaymentModalComponent implements OnInit {
     }
     this.db.searchCustomers(q).subscribe(results => {
       this.suggestions = results;
+    });
+  }
+
+  async onPhoneBlur(): Promise<void> {
+    const phone = this.phoneNumber.trim();
+    const newName = this.customerName.trim();
+    if (!phone || !newName) return;
+
+    this.db.getKnownNameForPhone(phone).subscribe(async knownName => {
+      if (!knownName || knownName.toLowerCase() === newName.toLowerCase()) return;
+
+      const alert = await this.alertCtrl.create({
+        header: 'Name Mismatch',
+        message: `This phone number was previously used by "${knownName}". Keep the existing name or update to "${newName}"?`,
+        buttons: [
+          {
+            text: `Keep "${knownName}"`,
+            handler: () => { this.customerName = knownName; },
+          },
+          {
+            text: `Use "${newName}"`,
+            role: 'destructive',
+          },
+        ],
+      });
+      await alert.present();
     });
   }
 

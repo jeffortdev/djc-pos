@@ -573,6 +573,42 @@ export class DatabaseService {
     }));
   }
 
+  getTransactionsByPhone(phone: string): Observable<Transaction[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        return [...this.local.getTransactions()]
+          .filter(t => t.phone_number === phone)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      }
+      const r = await this.sqliteStore!.query(
+        'SELECT * FROM transactions WHERE phone_number=? ORDER BY created_at DESC',
+        [phone]
+      );
+      return (r.values ?? []) as Transaction[];
+    }));
+  }
+
+  /** Returns the most recently used customer_name for this phone, or '' if none. */
+  getKnownNameForPhone(phone: string): Observable<string> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const tx = [...this.local.getTransactions()]
+          .filter(t => t.phone_number === phone && !!t.customer_name)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+        return tx?.customer_name ?? '';
+      }
+      try {
+        const r = await this.sqliteStore!.query(
+          `SELECT customer_name FROM transactions
+           WHERE phone_number=? AND customer_name != ''
+           ORDER BY created_at DESC LIMIT 1`,
+          [phone]
+        );
+        return (r.values?.[0]?.customer_name ?? '') as string;
+      } catch { return ''; }
+    }));
+  }
+
   searchCustomers(query: string): Observable<{ name: string; phone_number: string }[]> {
     return from(this.ready.then(async () => {
       const q = query.toLowerCase();

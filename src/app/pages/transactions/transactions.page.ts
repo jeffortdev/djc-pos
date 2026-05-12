@@ -380,7 +380,7 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
   }
 
   async sendPickupSms(tx: Transaction): Promise<void> {
-    const defaultSms = `Hi! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!`;
+    const defaultSms = `Hi {{customer_name}}! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!`;
     const template = await firstValueFrom(this.api.getSetting('sms_message', defaultSms));
     const message = template
       .replace(/{{\s*order_id\s*}}/gi, String(tx.id))

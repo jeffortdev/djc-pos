@@ -388,7 +388,7 @@ export class SettingsPage {
   async ngOnInit(): Promise<void> {
     this.smsMessage = await firstValueFrom(this.api.getSetting(
       'sms_message',
-      'Hi! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!'
+      'Hi {{customer_name}}! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!'
     ));
     this.loyaltySmsMessage = await firstValueFrom(this.api.getSetting(
       'loyalty_sms_message',
@@ -680,7 +680,7 @@ export class SettingsPage {
 
   async saveSmsMessage(): Promise<void> {
     this.smsSaving = true;
-    const message = this.smsMessage?.trim() || 'Hi! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!';
+    const message = this.smsMessage?.trim() || 'Hi {{customer_name}}! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!';
     this.api.setSetting('sms_message', message).subscribe(async () => {
       this.smsSaving = false;
       const toast = await this.toastCtrl.create({ message: 'SMS template saved.', duration: 2500, color: 'success' });

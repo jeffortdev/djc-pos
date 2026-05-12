@@ -6,7 +6,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonCardHeader, IonCardTitle, IonIcon, IonSpinner, IonChip, IonLabel,
   IonRefresher, IonRefresherContent, IonButton,
-  AlertController, ToastController
+  AlertController, ToastController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -19,6 +19,7 @@ import { firstValueFrom } from 'rxjs';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { DashboardStats, LoyaltyEntry, ReportStats } from '../../models/models';
+import { LoyaltyTransactionsModalComponent } from './loyalty-transactions-modal/loyalty-transactions-modal.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -29,7 +30,7 @@ import { DashboardStats, LoyaltyEntry, ReportStats } from '../../models/models';
     IonCardHeader, IonCardTitle, IonIcon, IonSpinner, IonChip, IonLabel,
     IonRefresher, IonRefresherContent, IonButton,
   ],
-  providers: [AlertController, ToastController],
+  providers: [AlertController, ToastController, ModalController],
   template: `
     <ion-header>
       <ion-toolbar color="primary">
@@ -207,7 +208,7 @@ import { DashboardStats, LoyaltyEntry, ReportStats } from '../../models/models';
             } @else {
               @for (entry of loyaltyEntries; track entry.phone_number) {
                 <div class="loyalty-row">
-                  <div class="loy-info">
+                  <div class="loy-info loy-clickable" (click)="viewLoyaltyTransactions(entry)">
                     @if (entry.customer_name) { <span class="loy-name">{{ entry.customer_name }}</span> }
                     <span class="loy-phone">{{ entry.phone_number }}</span>
                   </div>
@@ -252,6 +253,8 @@ import { DashboardStats, LoyaltyEntry, ReportStats } from '../../models/models';
     .loading-inline { display: flex; justify-content: center; padding: 12px; }
     .loyalty-row { display: flex; align-items: center; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--ion-border-color); }
     .loy-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .loy-clickable { cursor: pointer; }
+    .loy-clickable:active { opacity: 0.6; }
     .loy-name { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .loy-phone { font-size: 0.78rem; opacity: 0.6; }
     .sum-header { display: flex; align-items: center; justify-content: space-between; }
@@ -283,7 +286,7 @@ export class DashboardPage implements OnInit, ViewWillEnter {
   loyaltyEntries: LoyaltyEntry[] = [];
   loyaltyLoading = false;
 
-  constructor(private api: DatabaseService, private alertCtrl: AlertController, private toastCtrl: ToastController, private router: Router, public branding: BrandingService) {
+  constructor(private api: DatabaseService, private alertCtrl: AlertController, private toastCtrl: ToastController, private modalCtrl: ModalController, private router: Router, public branding: BrandingService) {
     addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline });
   }
 
@@ -393,6 +396,14 @@ export class DashboardPage implements OnInit, ViewWillEnter {
       next: entries => { this.loyaltyEntries = entries; this.loyaltyLoading = false; },
       error: () => { this.loyaltyLoading = false; },
     });
+  }
+
+  async viewLoyaltyTransactions(entry: LoyaltyEntry): Promise<void> {
+    const modal = await this.modalCtrl.create({
+      component: LoyaltyTransactionsModalComponent,
+      componentProps: { entry },
+    });
+    await modal.present();
   }
 
   async notifyLoyalty(entry: LoyaltyEntry): Promise<void> {
