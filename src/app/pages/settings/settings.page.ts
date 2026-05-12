@@ -253,6 +253,29 @@ import { BrandingService, ColorTheme } from '../../services/branding.service';
         </ion-button>
       </div>
 
+      <div class="section-header">Loyalty SMS Message</div>
+      <ion-list inset>
+        <ion-item>
+          <ion-label position="stacked">Loyalty incentive notification template</ion-label>
+          <ion-textarea
+            rows="5"
+            placeholder="Enter loyalty SMS message template"
+            [(ngModel)]="loyaltySmsMessage"
+          ></ion-textarea>
+        </ion-item>
+        <ion-item lines="none">
+          <ion-note>
+            Use <strong>{{ '{{customer_name}}' }}</strong> for the customer name.
+          </ion-note>
+        </ion-item>
+      </ion-list>
+      <div class="btn-wrap">
+        <ion-button expand="block" fill="outline" (click)="saveLoyaltySmsMessage()" [disabled]="loyaltySmsSaving">
+          <ion-icon name="chatbubble-outline" slot="start"></ion-icon>
+          Save Loyalty SMS Template
+        </ion-button>
+      </div>
+
       <div class="section-header">Backup</div>
       <ion-list inset>
         <ion-item lines="none">
@@ -331,6 +354,8 @@ export class SettingsPage {
   saving = false;
   smsMessage = '';
   smsSaving = false;
+  loyaltySmsMessage = '';
+  loyaltySmsSaving = false;
 
   // Branding
   appTitle         = '';
@@ -364,6 +389,10 @@ export class SettingsPage {
     this.smsMessage = await firstValueFrom(this.api.getSetting(
       'sms_message',
       'Hi! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!'
+    ));
+    this.loyaltySmsMessage = await firstValueFrom(this.api.getSetting(
+      'loyalty_sms_message',
+      'Hi {{customer_name}}! You have earned a loyalty reward! Visit us to claim your incentive. Thank you!'
     ));
     // Load branding state into local form fields
     const [title, logo, watermark, opacityStr] = await Promise.all([
@@ -659,6 +688,20 @@ export class SettingsPage {
     }, async () => {
       this.smsSaving = false;
       const toast = await this.toastCtrl.create({ message: 'Unable to save SMS template.', duration: 2500, color: 'danger' });
+      await toast.present();
+    });
+  }
+
+  async saveLoyaltySmsMessage(): Promise<void> {
+    this.loyaltySmsSaving = true;
+    const message = this.loyaltySmsMessage?.trim() || 'Hi {{customer_name}}! You have earned a loyalty reward! Visit us to claim your incentive. Thank you!';
+    this.api.setSetting('loyalty_sms_message', message).subscribe(async () => {
+      this.loyaltySmsSaving = false;
+      const toast = await this.toastCtrl.create({ message: 'Loyalty SMS template saved.', duration: 2500, color: 'success' });
+      await toast.present();
+    }, async () => {
+      this.loyaltySmsSaving = false;
+      const toast = await this.toastCtrl.create({ message: 'Unable to save loyalty SMS template.', duration: 2500, color: 'danger' });
       await toast.present();
     });
   }

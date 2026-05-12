@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Platform } from '@ionic/angular/standalone';
 import { BehaviorSubject, Observable, from } from 'rxjs';
-import { DashboardStats, LaundryService, Product, Transaction, TransactionItem, DatabaseBackup, ReportStats, ReportBreakdown, RepeatCustomer, StockEntry } from '../models/models';
+import { DashboardStats, LaundryService, LoyaltyEntry, Product, Transaction, TransactionItem, DatabaseBackup, ReportStats, ReportBreakdown, RepeatCustomer, StockEntry } from '../models/models';
 
 const DB_NAME = 'djcpos';
 
@@ -75,6 +75,13 @@ const SCHEMA = `
     stock_after INTEGER NOT NULL,
     created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
   );
+
+  CREATE TABLE IF NOT EXISTS loyalty_redemptions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone_number  TEXT    NOT NULL,
+    customer_name TEXT    NOT NULL DEFAULT '',
+    redeemed_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
+  );
 `;
 
 const SEED_SERVICES = [
@@ -113,6 +120,12 @@ class LocalStore {
   saveTransactions(v: Transaction[]) { this.write('lm_transactions', v); }
   getStockHistory(): StockEntry[] { return this.read<StockEntry[]>('lm_stock_history', []); }
   saveStockHistory(v: StockEntry[]) { this.write('lm_stock_history', v); }
+  getLoyaltyRedemptions(): { phone_number: string; customer_name: string; redeemed_at: string }[] {
+    return this.read<{ phone_number: string; customer_name: string; redeemed_at: string }[]>('lm_loyalty_redemptions', []);
+  }
+  saveLoyaltyRedemptions(v: { phone_number: string; customer_name: string; redeemed_at: string }[]) {
+    this.write('lm_loyalty_redemptions', v);
+  }
   getRegisterEntries(): { id: number; amount: number; note: string; created_at: string }[] {
     return this.read('lm_register_entries', []);
   }
@@ -277,6 +290,19 @@ export class DatabaseService {
           note        TEXT    NOT NULL DEFAULT '',
           stock_after INTEGER NOT NULL,
           created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
+        )
+      `);
+    }
+
+    // Migrate: create loyalty_redemptions table if missing (added after initial release)
+    const loyaltyTbl = await this.sqliteStore!.query("SELECT name FROM sqlite_master WHERE type='table' AND name='loyalty_redemptions'");
+    if (!loyaltyTbl.values?.length) {
+      await this.sqliteStore!.execute(`
+        CREATE TABLE IF NOT EXISTS loyalty_redemptions (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          phone_number  TEXT    NOT NULL,
+          customer_name TEXT    NOT NULL DEFAULT '',
+          redeemed_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
         )
       `);
     }
@@ -1307,5 +1333,79 @@ export class DatabaseService {
       [limit],
     );
     return (r.values ?? []).map((row: any) => ({ ...row, customer_name: row.customer_name ?? '' })) as RepeatCustomer[];
+  }
+
+  // ── Loyalty Tracking ──────────────────────────────────────────────────────
+
+  getLoyaltyTracking(): Observable<LoyaltyEntry[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const allTx = this.local.getTransactions();
+        const redemptions = this.local.getLoyaltyRedemptions();
+        const lastRedeemed: Record<string, string> = {};
+        for (const r of redemptions) {
+          if (!lastRedeemed[r.phone_number] || r.redeemed_at > lastRedeemed[r.phone_number]) {
+            lastRedeemed[r.phone_number] = r.redeemed_at;
+          }
+        }
+        const map: Record<string, { customer_name: string; visit_count: number; total_spent: number; last_visit: string }> = {};
+        for (const tx of allTx) {
+          if (!tx.phone_number) continue;
+          const cutoff = lastRedeemed[tx.phone_number];
+          if (cutoff && tx.created_at <= cutoff) continue;
+          if (!map[tx.phone_number]) {
+            map[tx.phone_number] = { customer_name: tx.customer_name ?? '', visit_count: 0, total_spent: 0, last_visit: tx.created_at };
+          }
+          map[tx.phone_number].visit_count += 1;
+          map[tx.phone_number].total_spent += tx.total;
+          if (tx.created_at > map[tx.phone_number].last_visit) {
+            map[tx.phone_number].last_visit = tx.created_at;
+            if (tx.customer_name) map[tx.phone_number].customer_name = tx.customer_name;
+          }
+        }
+        return Object.entries(map)
+          .map(([phone_number, v]) => ({ phone_number, ...v }))
+          .sort((a, b) => b.visit_count - a.visit_count || b.total_spent - a.total_spent);
+      }
+      const r = await this.sqliteStore!.query(`
+        SELECT
+          t.phone_number,
+          COALESCE(
+            (SELECT customer_name FROM transactions
+             WHERE phone_number = t.phone_number AND customer_name != ''
+             ORDER BY created_at DESC LIMIT 1), ''
+          ) AS customer_name,
+          COUNT(*) AS visit_count,
+          SUM(t.total) AS total_spent,
+          MAX(t.created_at) AS last_visit
+        FROM transactions t
+        LEFT JOIN (
+          SELECT phone_number, MAX(redeemed_at) AS last_redeemed
+          FROM loyalty_redemptions
+          GROUP BY phone_number
+        ) lr ON lr.phone_number = t.phone_number
+        WHERE t.phone_number != ''
+          AND (lr.last_redeemed IS NULL OR t.created_at > lr.last_redeemed)
+        GROUP BY t.phone_number
+        ORDER BY visit_count DESC, total_spent DESC
+      `);
+      return (r.values ?? []) as LoyaltyEntry[];
+    }));
+  }
+
+  redeemLoyalty(phone_number: string, customer_name: string): Observable<void> {
+    return from(this.ready.then(async () => {
+      const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      if (!this.isNative) {
+        const redemptions = this.local.getLoyaltyRedemptions();
+        redemptions.push({ phone_number, customer_name, redeemed_at: now });
+        this.local.saveLoyaltyRedemptions(redemptions);
+        return;
+      }
+      await this.sqliteStore!.run(
+        'INSERT INTO loyalty_redemptions (phone_number, customer_name, redeemed_at) VALUES (?,?,?)',
+        [phone_number, customer_name, now]
+      );
+    }));
   }
 }

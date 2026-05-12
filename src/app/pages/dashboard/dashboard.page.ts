@@ -6,17 +6,19 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonCardHeader, IonCardTitle, IonIcon, IonSpinner, IonChip, IonLabel,
   IonRefresher, IonRefresherContent, IonButton,
-  AlertController
+  AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline,
   checkmarkCircleOutline, cardOutline, phonePortraitOutline,
-  walletOutline, addCircleOutline, removeOutline
+  walletOutline, addCircleOutline, removeOutline,
+  chatbubbleOutline, trashOutline
 } from 'ionicons/icons';
+import { firstValueFrom } from 'rxjs';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
-import { DashboardStats, ReportStats } from '../../models/models';
+import { DashboardStats, LoyaltyEntry, ReportStats } from '../../models/models';
 
 @Component({
   selector: 'app-dashboard',
@@ -27,7 +29,7 @@ import { DashboardStats, ReportStats } from '../../models/models';
     IonCardHeader, IonCardTitle, IonIcon, IonSpinner, IonChip, IonLabel,
     IonRefresher, IonRefresherContent, IonButton,
   ],
-  providers: [AlertController],
+  providers: [AlertController, ToastController],
   template: `
     <ion-header>
       <ion-toolbar color="primary">
@@ -191,6 +193,38 @@ import { DashboardStats, ReportStats } from '../../models/models';
             }
           </ion-card-content>
         </ion-card>
+
+        <!-- Loyalty Tracking -->
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>Loyalty Tracking</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            @if (loyaltyLoading) {
+              <div class="loading-inline"><ion-spinner name="dots"></ion-spinner></div>
+            } @else if (loyaltyEntries.length === 0) {
+              <p class="empty">No customers with a phone number yet.</p>
+            } @else {
+              @for (entry of loyaltyEntries; track entry.phone_number) {
+                <div class="loyalty-row">
+                  <div class="loy-info">
+                    @if (entry.customer_name) { <span class="loy-name">{{ entry.customer_name }}</span> }
+                    <span class="loy-phone">{{ entry.phone_number }}</span>
+                  </div>
+                  <ion-chip color="tertiary" size="small">
+                    <ion-label>{{ entry.visit_count }}x</ion-label>
+                  </ion-chip>
+                  <ion-button size="small" fill="clear" color="success" (click)="notifyLoyalty(entry)">
+                    <ion-icon name="chatbubble-outline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                  <ion-button size="small" fill="clear" color="danger" (click)="clearLoyalty(entry)">
+                    <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                </div>
+              }
+            }
+          </ion-card-content>
+        </ion-card>
       }
     </ion-content>
   `,
@@ -214,6 +248,12 @@ import { DashboardStats, ReportStats } from '../../models/models';
     .tx-id { font-weight: 600; font-size: 0.9rem; }
     .tx-time { font-size: 0.72rem; opacity: 0.55; }
     .svc-rev, .tx-total { font-weight: 700; white-space: nowrap; }
+    .empty { text-align: center; color: var(--ion-color-medium); padding: 16px; font-size: 0.87rem; }
+    .loading-inline { display: flex; justify-content: center; padding: 12px; }
+    .loyalty-row { display: flex; align-items: center; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--ion-border-color); }
+    .loy-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .loy-name { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .loy-phone { font-size: 0.78rem; opacity: 0.6; }
     .sum-header { display: flex; align-items: center; justify-content: space-between; }
     .sum-period { display: flex; gap: 4px; }
     .per-btn { background: none; border: 1px solid var(--ion-color-medium); border-radius: 12px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer; color: var(--ion-color-medium); }
@@ -240,14 +280,16 @@ export class DashboardPage implements OnInit, ViewWillEnter {
   summaryPeriod: 'week' | 'month' = 'week';
   summary: ReportStats | null = null;
   summaryLoading = false;
+  loyaltyEntries: LoyaltyEntry[] = [];
+  loyaltyLoading = false;
 
-  constructor(private api: DatabaseService, private alertCtrl: AlertController, private router: Router, public branding: BrandingService) {
-    addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline });
+  constructor(private api: DatabaseService, private alertCtrl: AlertController, private toastCtrl: ToastController, private router: Router, public branding: BrandingService) {
+    addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline });
   }
 
-  ngOnInit(): void { this.load(); this.loadSummary(); }
+  ngOnInit(): void { this.load(); this.loadSummary(); this.loadLoyalty(); }
 
-  ionViewWillEnter(): void { this.load(); this.loadSummary(); }
+  ionViewWillEnter(): void { this.load(); this.loadSummary(); this.loadLoyalty(); }
 
   load(): void {
     this.loading = true;
@@ -343,5 +385,47 @@ export class DashboardPage implements OnInit, ViewWillEnter {
       ],
     });
     await pinAlert.present();
+  }
+
+  loadLoyalty(): void {
+    this.loyaltyLoading = true;
+    this.api.getLoyaltyTracking().subscribe({
+      next: entries => { this.loyaltyEntries = entries; this.loyaltyLoading = false; },
+      error: () => { this.loyaltyLoading = false; },
+    });
+  }
+
+  async notifyLoyalty(entry: LoyaltyEntry): Promise<void> {
+    const defaultMsg = 'Hi {{customer_name}}! You have earned a loyalty reward! Visit us to claim your incentive. Thank you!';
+    const template = await firstValueFrom(this.api.getSetting('loyalty_sms_message', defaultMsg));
+    const message = template
+      .replace(/{{\s*customer_name\s*}}/gi, entry.customer_name || entry.phone_number)
+      .replace(/{{\s*phone_number\s*}}/gi, entry.phone_number);
+    window.open(`sms:${entry.phone_number}?body=${encodeURIComponent(message)}`, '_system');
+  }
+
+  async clearLoyalty(entry: LoyaltyEntry): Promise<void> {
+    const label = entry.customer_name || entry.phone_number;
+    const alert = await this.alertCtrl.create({
+      header: 'Clear Loyalty',
+      message: `Mark incentive as claimed for ${label}? Their visit count will reset to 0.`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Clear',
+          role: 'destructive',
+          handler: () => {
+            this.api.redeemLoyalty(entry.phone_number, entry.customer_name).subscribe({
+              next: async () => {
+                this.loadLoyalty();
+                const toast = await this.toastCtrl.create({ message: `Loyalty cleared for ${label}.`, duration: 2000, color: 'success' });
+                await toast.present();
+              },
+            });
+          },
+        },
+      ],
+    });
+    await alert.present();
   }
 }
