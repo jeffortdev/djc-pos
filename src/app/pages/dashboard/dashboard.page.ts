@@ -198,15 +198,21 @@ import { LoyaltyTransactionsModalComponent } from './loyalty-transactions-modal/
         <!-- Loyalty Tracking -->
         <ion-card>
           <ion-card-header>
-            <ion-card-title>Loyalty Tracking</ion-card-title>
+            <div class="loy-header">
+              <ion-card-title>Loyalty Tracking</ion-card-title>
+              <div class="loy-filter">
+                <span class="loy-filter-lbl">Min. visits</span>
+                <input class="loy-filter-input" type="number" min="1" [value]="loyaltyMinVisits" (change)="onLoyaltyMinVisitsChange($event)">
+              </div>
+            </div>
           </ion-card-header>
           <ion-card-content>
             @if (loyaltyLoading) {
               <div class="loading-inline"><ion-spinner name="dots"></ion-spinner></div>
-            } @else if (loyaltyEntries.length === 0) {
-              <p class="empty">No customers with a phone number yet.</p>
+            } @else if (filteredLoyaltyEntries.length === 0) {
+              <p class="empty">No customers with {{ loyaltyMinVisits }}+ visits yet.</p>
             } @else {
-              @for (entry of loyaltyEntries; track entry.phone_number) {
+              @for (entry of filteredLoyaltyEntries; track entry.phone_number) {
                 <div class="loyalty-row">
                   <div class="loy-info loy-clickable" (click)="viewLoyaltyTransactions(entry)">
                     @if (entry.customer_name) { <span class="loy-name">{{ entry.customer_name }}</span> }
@@ -272,6 +278,10 @@ import { LoyaltyTransactionsModalComponent } from './loyalty-transactions-modal/
     .sum-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--ion-border-color); }
     .prev-lbl { font-size: 0.72rem; opacity: 0.55; }
     .report-link { background: none; border: none; color: var(--ion-color-primary); font-size: 0.8rem; font-weight: 600; cursor: pointer; padding: 4px; }
+    .loy-header { display: flex; align-items: center; justify-content: space-between; }
+    .loy-filter { display: flex; align-items: center; gap: 6px; }
+    .loy-filter-lbl { font-size: 0.72rem; opacity: 0.6; white-space: nowrap; }
+    .loy-filter-input { width: 52px; border: 1px solid var(--ion-color-medium); border-radius: 8px; padding: 4px 6px; font-size: 0.85rem; text-align: center; background: transparent; color: var(--ion-text-color); outline: none; }
     @media (max-width: 360px) {
       .kpi-value { font-size: 0.9rem; }
     }
@@ -285,6 +295,11 @@ export class DashboardPage implements OnInit, ViewWillEnter {
   summaryLoading = false;
   loyaltyEntries: LoyaltyEntry[] = [];
   loyaltyLoading = false;
+  loyaltyMinVisits = 10;
+
+  get filteredLoyaltyEntries(): LoyaltyEntry[] {
+    return this.loyaltyEntries.filter(e => e.visit_count >= this.loyaltyMinVisits);
+  }
 
   constructor(private api: DatabaseService, private alertCtrl: AlertController, private toastCtrl: ToastController, private modalCtrl: ModalController, private router: Router, public branding: BrandingService) {
     addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline });
@@ -392,10 +407,21 @@ export class DashboardPage implements OnInit, ViewWillEnter {
 
   loadLoyalty(): void {
     this.loyaltyLoading = true;
+    this.api.getSetting('loyalty_min_visits', '10').subscribe(val => {
+      this.loyaltyMinVisits = parseInt(val, 10) || 10;
+    });
     this.api.getLoyaltyTracking().subscribe({
       next: entries => { this.loyaltyEntries = entries; this.loyaltyLoading = false; },
       error: () => { this.loyaltyLoading = false; },
     });
+  }
+
+  onLoyaltyMinVisitsChange(event: Event): void {
+    const val = parseInt((event.target as HTMLInputElement).value, 10);
+    if (!isNaN(val) && val >= 1) {
+      this.loyaltyMinVisits = val;
+      this.api.setSetting('loyalty_min_visits', val.toString()).subscribe();
+    }
   }
 
   async viewLoyaltyTransactions(entry: LoyaltyEntry): Promise<void> {
