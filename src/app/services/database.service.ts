@@ -7,13 +7,14 @@ const DB_NAME = 'djcpos';
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS services (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT    NOT NULL,
-    price      REAL    NOT NULL,
-    category   TEXT    NOT NULL DEFAULT 'standard',
-    unit       TEXT    NOT NULL DEFAULT 'per item',
-    active     INTEGER NOT NULL DEFAULT 1,
-    sort_order INTEGER NOT NULL DEFAULT 0
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    name             TEXT    NOT NULL,
+    price            REAL    NOT NULL,
+    category         TEXT    NOT NULL DEFAULT 'standard',
+    unit             TEXT    NOT NULL DEFAULT 'per item',
+    active           INTEGER NOT NULL DEFAULT 1,
+    sort_order       INTEGER NOT NULL DEFAULT 0,
+    loyalty_tracking INTEGER NOT NULL DEFAULT 1
   );
 
   CREATE TABLE IF NOT EXISTS products (
@@ -208,7 +209,7 @@ export class DatabaseService {
         this.notifyRecovery('Local data was missing or corrupted. The app has restored default data.');
       }
 
-      const seededServices: LaundryService[] = SEED_SERVICES.map((s, i) => ({ ...s, id: i + 1, active: 1 }));
+      const seededServices: LaundryService[] = SEED_SERVICES.map((s, i) => ({ ...s, id: i + 1, active: 1, loyalty_tracking: 1 }));
       const seededProducts: Product[] = SEED_PRODUCTS.map((p, i) => ({
         ...p,
         id: i + 1,
@@ -220,6 +221,15 @@ export class DatabaseService {
       localStorage.setItem('lm_initialized', '1');
     } else if (!initialized) {
       localStorage.setItem('lm_initialized', '1');
+    }
+
+    // Schema migration: add loyalty_tracking=1 to any existing service that lacks it.
+    // All services are opted-in by default; only explicit user action opts them out.
+    const existing = this.local.getServices();
+    if (existing.some(s => (s as any).loyalty_tracking == null)) {
+      this.local.saveServices(
+        existing.map(s => ({ ...s, loyalty_tracking: (s as any).loyalty_tracking ?? 1 }))
+      );
     }
   }
 
@@ -270,6 +280,15 @@ export class DatabaseService {
     const hasCustomerName = (cols.values ?? []).some((c: { name: string }) => c.name === 'customer_name');
     if (!hasCustomerName) {
       await this.sqliteStore!.run("ALTER TABLE transactions ADD COLUMN customer_name TEXT NOT NULL DEFAULT ''");
+    }
+
+    // Migrate: add loyalty_tracking column to services if missing, then ensure all rows are set to 1
+    const svcCols = await this.sqliteStore!.query("PRAGMA table_info(services)");
+    const hasLoyaltyTracking = (svcCols.values ?? []).some((c: { name: string }) => c.name === 'loyalty_tracking');
+    if (!hasLoyaltyTracking) {
+      await this.sqliteStore!.run("ALTER TABLE services ADD COLUMN loyalty_tracking INTEGER NOT NULL DEFAULT 1");
+      // Explicitly set every pre-existing row to 1 (DEFAULT handles new rows; this is belt-and-suspenders)
+      await this.sqliteStore!.run("UPDATE services SET loyalty_tracking = 1 WHERE loyalty_tracking IS NULL");
     }
 
     const itemCols = await this.sqliteStore!.query("PRAGMA table_info(transaction_items)");
@@ -353,15 +372,15 @@ export class DatabaseService {
         const newItem: LaundryService = {
           id: this.local.nextId(list), name: s.name!, price: s.price!,
           category: s.category ?? 'standard', unit: s.unit ?? 'per item',
-          active: 1, sort_order: s.sort_order ?? 0
+          active: 1, sort_order: s.sort_order ?? 0, loyalty_tracking: s.loyalty_tracking ?? 1
         };
         list.push(newItem);
         this.local.saveServices(list);
         return { id: newItem.id };
       }
       const r = await this.sqliteStore!.run(
-        'INSERT INTO services (name, price, category, unit, sort_order) VALUES (?,?,?,?,?)',
-        [s.name, s.price, s.category ?? 'standard', s.unit ?? 'per item', s.sort_order ?? 0]
+        'INSERT INTO services (name, price, category, unit, sort_order, loyalty_tracking) VALUES (?,?,?,?,?,?)',
+        [s.name, s.price, s.category ?? 'standard', s.unit ?? 'per item', s.sort_order ?? 0, s.loyalty_tracking ?? 1]
       );
       return { id: r.changes?.lastId ?? 0 };
     }));
@@ -377,8 +396,8 @@ export class DatabaseService {
         return { ok: true };
       }
       await this.sqliteStore!.run(
-        'UPDATE services SET name=?, price=?, category=?, unit=?, active=?, sort_order=? WHERE id=?',
-        [s.name, s.price, s.category, s.unit, s.active ?? 1, s.sort_order ?? 0, id]
+        'UPDATE services SET name=?, price=?, category=?, unit=?, active=?, sort_order=?, loyalty_tracking=? WHERE id=?',
+        [s.name, s.price, s.category, s.unit, s.active ?? 1, s.sort_order ?? 0, s.loyalty_tracking ?? 1, id]
       );
       return { ok: true };
     }));
@@ -820,7 +839,10 @@ export class DatabaseService {
           .filter(k => k.startsWith('lm_setting_'))
           .forEach(k => localStorage.removeItem(k));
 
-        this.local.saveServices(backup.services);
+        // Normalise services from old backups that pre-date loyalty_tracking
+        this.local.saveServices(
+          backup.services.map(s => ({ ...s, loyalty_tracking: (s as any).loyalty_tracking ?? 1 }))
+        );
         this.local.saveProducts(backup.products);
         this.local.saveTransactions(backup.transactions);
         this.local.saveRegisterEntries(backup.registerEntries);
@@ -839,8 +861,8 @@ export class DatabaseService {
 
       for (const service of backup.services) {
         await this.sqliteStore!.run(
-          'INSERT INTO services (id, name, price, category, unit, active, sort_order) VALUES (?,?,?,?,?,?,?)',
-          [service.id, service.name, service.price, service.category, service.unit, service.active, service.sort_order]
+          'INSERT INTO services (id, name, price, category, unit, active, sort_order, loyalty_tracking) VALUES (?,?,?,?,?,?,?,?)',
+          [service.id, service.name, service.price, service.category, service.unit, service.active, service.sort_order, (service as any).loyalty_tracking ?? 1]
         );
       }
 
@@ -1384,11 +1406,22 @@ export class DatabaseService {
             lastRedeemed[r.phone_number] = r.redeemed_at;
           }
         }
+        // Build set of service IDs tagged for loyalty tracking
+        const loyaltyServiceIds = new Set(
+          this.local.getServices()
+            .filter(s => (s.loyalty_tracking ?? 1) === 1)
+            .map(s => s.id)
+        );
         const map: Record<string, { customer_name: string; visit_count: number; total_spent: number; last_visit: string }> = {};
         for (const tx of allTx) {
           if (!tx.phone_number) continue;
           const cutoff = lastRedeemed[tx.phone_number];
           if (cutoff && tx.created_at <= cutoff) continue;
+          // Only count if transaction contains at least one loyalty-tracked service item
+          const hasLoyaltyItem = (tx.items ?? []).some(
+            item => item.item_type !== 'product' && loyaltyServiceIds.has(item.service_id)
+          );
+          if (!hasLoyaltyItem) continue;
           if (!map[tx.phone_number]) {
             map[tx.phone_number] = { customer_name: tx.customer_name ?? '', visit_count: 0, total_spent: 0, last_visit: tx.created_at };
           }
@@ -1422,6 +1455,13 @@ export class DatabaseService {
         ) lr ON lr.phone_number = t.phone_number
         WHERE t.phone_number != ''
           AND (lr.last_redeemed IS NULL OR t.created_at > lr.last_redeemed)
+          AND EXISTS (
+            SELECT 1 FROM transaction_items ti
+            JOIN services s ON s.id = ti.service_id
+            WHERE ti.transaction_id = t.id
+              AND ti.item_type = 'service'
+              AND s.loyalty_tracking = 1
+          )
         GROUP BY t.phone_number
         ORDER BY visit_count DESC, total_spent DESC
       `);

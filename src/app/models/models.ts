@@ -6,6 +6,7 @@ export interface LaundryService {
   unit: string;
   active: number;
   sort_order: number;
+  loyalty_tracking: number;
 }
 
 export interface Product {

@@ -8,7 +8,7 @@ import {
   IonRefresherContent, AlertController, ToastController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline } from 'ionicons/icons';
+import { addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { LaundryService } from '../../models/models';
@@ -86,6 +86,15 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
                 }
               </ion-select>
             </ion-item>
+            <ion-item>
+              <ion-icon name="heart-outline" slot="start" [color]="(form.loyalty_tracking ?? 1) === 1 ? 'danger' : 'medium'"></ion-icon>
+              <ion-label>Include in Loyalty Tracking</ion-label>
+              <ion-toggle
+                slot="end"
+                [checked]="(form.loyalty_tracking ?? 1) === 1"
+                (ionChange)="form.loyalty_tracking = $event.detail.checked ? 1 : 0"
+              ></ion-toggle>
+            </ion-item>
             <div class="form-actions">
               <ion-button fill="outline" (click)="cancelEdit()">
                 <ion-icon name="close-outline" slot="start"></ion-icon>
@@ -123,6 +132,16 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
                   <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
                 </ion-button>
               </div>
+              <div class="svc-loyalty-row">
+                <ion-icon [name]="svc.loyalty_tracking === 1 ? 'heart' : 'heart-outline'" [color]="svc.loyalty_tracking === 1 ? 'danger' : 'medium'" class="loyalty-icon"></ion-icon>
+                <span class="loyalty-label">Loyalty Tracking</span>
+                <ion-toggle
+                  [checked]="svc.loyalty_tracking === 1"
+                  (ionChange)="toggleLoyalty(svc, $event.detail.checked)"
+                  size="small"
+                  color="danger"
+                ></ion-toggle>
+              </div>
             </ion-card-content>
           </ion-card>
         }
@@ -141,7 +160,11 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
     .svc-name { font-weight: 600; font-size: 0.9rem; }
     .svc-meta { font-size: 0.72rem; opacity: 0.55; text-transform: capitalize; }
     .svc-price { font-weight: 700; color: var(--ion-color-primary); white-space: nowrap; }
+    .svc-loyalty-row { display: flex; align-items: center; gap: 6px; padding: 4px 0 0; border-top: 1px solid var(--ion-border-color); margin-top: 6px; }
+    .loyalty-icon { font-size: 1rem; }
+    .loyalty-label { flex: 1; font-size: 0.72rem; opacity: 0.65; }
   `],
+
 })
 export class ServicesAdminPage implements OnInit {
   services: LaundryService[] = [];
@@ -159,7 +182,7 @@ export class ServicesAdminPage implements OnInit {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline });
+    addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart });
   }
 
   ngOnInit(): void { this.loadServices(); }
@@ -178,7 +201,7 @@ export class ServicesAdminPage implements OnInit {
   startAdd(): void {
     this.isNew = true;
     this.editing = true;
-    this.form = { name: '', price: 0, category: 'standard', unit: 'per item' };
+    this.form = { name: '', price: 0, category: 'standard', unit: 'per item', loyalty_tracking: 1 };
   }
 
   startEdit(svc: LaundryService): void {
@@ -208,6 +231,12 @@ export class ServicesAdminPage implements OnInit {
   toggleActive(svc: LaundryService, active: boolean): void {
     this.api.updateService(svc.id, { ...svc, active: active ? 1 : 0 }).subscribe(() => {
       svc.active = active ? 1 : 0;
+    });
+  }
+
+  toggleLoyalty(svc: LaundryService, val: boolean): void {
+    this.api.updateService(svc.id, { ...svc, loyalty_tracking: val ? 1 : 0 }).subscribe(() => {
+      svc.loyalty_tracking = val ? 1 : 0;
     });
   }
 
