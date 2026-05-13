@@ -93,7 +93,7 @@ export class LoyaltyTransactionsModalComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.db.getTransactionsByPhone(this.entry.phone_number).subscribe({
+    this.db.getLoyaltyTransactionsByPhone(this.entry.phone_number).subscribe({
       next: txs => { this.transactions = txs; this.loading = false; },
       error: () => { this.loading = false; },
     });

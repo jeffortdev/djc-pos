@@ -607,6 +607,55 @@ export class DatabaseService {
     }));
   }
 
+  /**
+   * Returns only the transactions for a phone number that qualify for loyalty tracking:
+   * – created after the last redemption for this phone (if any)
+   * – contains at least one service item whose service has loyalty_tracking = 1
+   */
+  getLoyaltyTransactionsByPhone(phone: string): Observable<Transaction[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const allTx = this.local.getTransactions();
+        const redemptions = this.local.getLoyaltyRedemptions();
+        const cutoff = redemptions
+          .filter(r => r.phone_number === phone)
+          .map(r => r.redeemed_at)
+          .sort()
+          .pop() ?? null;
+        const loyaltyServiceIds = new Set(
+          this.local.getServices()
+            .filter(s => (s.loyalty_tracking ?? 1) === 1)
+            .map(s => s.id)
+        );
+        return allTx
+          .filter(t => t.phone_number === phone)
+          .filter(t => !cutoff || t.created_at > cutoff)
+          .filter(t => (t.items ?? []).some(
+            item => item.item_type !== 'product' && loyaltyServiceIds.has(item.service_id)
+          ))
+          .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      }
+      const r = await this.sqliteStore!.query(
+        `SELECT DISTINCT t.*
+         FROM transactions t
+         JOIN transaction_items ti ON ti.transaction_id = t.id
+         JOIN services s ON s.id = ti.service_id
+         LEFT JOIN (
+           SELECT MAX(redeemed_at) AS last_redeemed
+           FROM loyalty_redemptions
+           WHERE phone_number = ?
+         ) lr ON 1=1
+         WHERE t.phone_number = ?
+           AND ti.item_type = 'service'
+           AND s.loyalty_tracking = 1
+           AND (lr.last_redeemed IS NULL OR t.created_at > lr.last_redeemed)
+         ORDER BY t.created_at DESC`,
+        [phone, phone]
+      );
+      return (r.values ?? []) as Transaction[];
+    }));
+  }
+
   /** Returns the most recently used customer_name for this phone, or '' if none. */
   getKnownNameForPhone(phone: string): Observable<string> {
     return from(this.ready.then(async () => {
