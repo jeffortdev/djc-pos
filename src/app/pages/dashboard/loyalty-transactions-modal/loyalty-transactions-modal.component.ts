@@ -7,7 +7,7 @@ import {
 import { addIcons } from 'ionicons';
 import { closeOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../../services/database.service';
-import { LoyaltyEntry, Transaction, TransactionItem } from '../../../models/models';
+import { LaundryService, LoyaltyEntry, Transaction, TransactionItem } from '../../../models/models';
 
 @Component({
   selector: 'app-loyalty-transactions-modal',
@@ -44,7 +44,7 @@ import { LoyaltyEntry, Transaction, TransactionItem } from '../../../models/mode
         <p class="empty">No transactions found.</p>
       } @else {
         <div class="summary-bar">
-          <span>{{ transactions.length }} visits</span>
+          <span>{{ totalServiceCount }} services ({{ transactions.length }} transactions)</span>
           <span class="summary-total">{{ totalSpent | currency:'PHP':'symbol':'1.2-2' }} total</span>
         </div>
         @for (tx of transactions; track tx.id) {
@@ -94,12 +94,20 @@ export class LoyaltyTransactionsModalComponent implements OnInit {
 
   loading = true;
   transactions: Transaction[] = [];
+  loyaltyServiceIds = new Set<number>();
 
   constructor(private modalCtrl: ModalController, private db: DatabaseService) {
     addIcons({ closeOutline });
   }
 
   ngOnInit(): void {
+    this.db.getAllServices().subscribe({
+      next: (services: LaundryService[]) => {
+        this.loyaltyServiceIds = new Set(
+          services.filter(s => (s.loyalty_tracking ?? 1) === 1).map(s => s.id)
+        );
+      },
+    });
     this.db.getLoyaltyTransactionsByPhone(this.entry.phone_number).subscribe({
       next: txs => { this.transactions = txs; this.loading = false; },
       error: () => { this.loading = false; },
@@ -110,12 +118,22 @@ export class LoyaltyTransactionsModalComponent implements OnInit {
     return this.transactions.reduce((s, t) => s + t.total, 0);
   }
 
+  get totalServiceCount(): number {
+    return this.transactions.reduce((sum, tx) =>
+      sum + (tx.items ?? []).filter(
+        i => i.item_type !== 'product' && this.loyaltyServiceIds.has(i.service_id)
+      ).length, 0
+    );
+  }
+
   paymentColor(method: string): string {
     return method === 'cash' ? 'success' : method === 'card' ? 'primary' : 'warning';
   }
 
   loyaltyItems(tx: Transaction): TransactionItem[] {
-    return (tx.items ?? []).filter(i => i.item_type !== 'product');
+    return (tx.items ?? []).filter(
+      i => i.item_type !== 'product' && this.loyaltyServiceIds.has(i.service_id)
+    );
   }
 
   dismiss(): void {

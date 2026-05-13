@@ -1477,15 +1477,15 @@ export class DatabaseService {
           if (!tx.phone_number) continue;
           const cutoff = lastRedeemed[tx.phone_number];
           if (cutoff && tx.created_at <= cutoff) continue;
-          // Only count if transaction contains at least one loyalty-tracked service item
-          const hasLoyaltyItem = (tx.items ?? []).some(
+          // Count each loyalty-tracked service item individually
+          const loyaltyItemCount = (tx.items ?? []).filter(
             item => item.item_type !== 'product' && loyaltyServiceIds.has(item.service_id)
-          );
-          if (!hasLoyaltyItem) continue;
+          ).length;
+          if (loyaltyItemCount === 0) continue;
           if (!map[tx.phone_number]) {
             map[tx.phone_number] = { customer_name: tx.customer_name ?? '', visit_count: 0, total_spent: 0, last_visit: tx.created_at };
           }
-          map[tx.phone_number].visit_count += 1;
+          map[tx.phone_number].visit_count += loyaltyItemCount;
           map[tx.phone_number].total_spent += tx.total;
           if (tx.created_at > map[tx.phone_number].last_visit) {
             map[tx.phone_number].last_visit = tx.created_at;
@@ -1504,7 +1504,13 @@ export class DatabaseService {
              WHERE phone_number = t.phone_number AND customer_name != ''
              ORDER BY created_at DESC LIMIT 1), ''
           ) AS customer_name,
-          COUNT(*) AS visit_count,
+          SUM((
+            SELECT COUNT(*) FROM transaction_items ti2
+            JOIN services s2 ON s2.id = ti2.service_id
+            WHERE ti2.transaction_id = t.id
+              AND ti2.item_type = 'service'
+              AND s2.loyalty_tracking = 1
+          )) AS visit_count,
           SUM(t.total) AS total_spent,
           MAX(t.created_at) AS last_visit
         FROM transactions t

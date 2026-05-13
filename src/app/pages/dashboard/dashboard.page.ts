@@ -201,7 +201,7 @@ import { LoyaltyTransactionsModalComponent } from './loyalty-transactions-modal/
             <div class="loy-header">
               <ion-card-title>Loyalty Tracking</ion-card-title>
               <div class="loy-filter">
-                <span class="loy-filter-lbl">Min. visits</span>
+                <span class="loy-filter-lbl">Min. services</span>
                 <input class="loy-filter-input" type="number" min="1" [value]="loyaltyMinVisits" (change)="onLoyaltyMinVisitsChange($event)">
               </div>
             </div>
@@ -210,7 +210,7 @@ import { LoyaltyTransactionsModalComponent } from './loyalty-transactions-modal/
             @if (loyaltyLoading) {
               <div class="loading-inline"><ion-spinner name="dots"></ion-spinner></div>
             } @else if (filteredLoyaltyEntries.length === 0) {
-              <p class="empty">No customers with {{ loyaltyMinVisits }}+ visits yet.</p>
+              <p class="empty">No customers with {{ loyaltyMinVisits }}+ services yet.</p>
             } @else {
               @for (entry of filteredLoyaltyEntries; track entry.phone_number) {
                 <div class="loyalty-row">
