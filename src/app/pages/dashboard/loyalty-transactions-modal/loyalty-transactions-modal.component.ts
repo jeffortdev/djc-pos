@@ -122,7 +122,7 @@ export class LoyaltyTransactionsModalComponent implements OnInit {
     return this.transactions.reduce((sum, tx) =>
       sum + (tx.items ?? []).filter(
         i => i.item_type !== 'product' && this.loyaltyServiceIds.has(i.service_id)
-      ).length, 0
+      ).reduce((s, i) => s + i.quantity, 0), 0
     );
   }
 
