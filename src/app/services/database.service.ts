@@ -652,7 +652,18 @@ export class DatabaseService {
          ORDER BY t.created_at DESC`,
         [phone, phone]
       );
-      return (r.values ?? []) as Transaction[];
+      const txs = (r.values ?? []) as Transaction[];
+      if (txs.length) {
+        const ids = txs.map(t => t.id).join(',');
+        const itemsR = await this.sqliteStore!.query(
+          `SELECT * FROM transaction_items WHERE transaction_id IN (${ids}) ORDER BY id`
+        );
+        const allItems = (itemsR.values ?? []) as TransactionItem[];
+        for (const tx of txs) {
+          tx.items = allItems.filter(i => i.transaction_id === tx.id);
+        }
+      }
+      return txs;
     }));
   }
 

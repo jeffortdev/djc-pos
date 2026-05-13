@@ -7,7 +7,7 @@ import {
 import { addIcons } from 'ionicons';
 import { closeOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../../services/database.service';
-import { LoyaltyEntry, Transaction } from '../../../models/models';
+import { LoyaltyEntry, Transaction, TransactionItem } from '../../../models/models';
 
 @Component({
   selector: 'app-loyalty-transactions-modal',
@@ -53,6 +53,11 @@ import { LoyaltyEntry, Transaction } from '../../../models/models';
               <span class="tx-id">#{{ tx.id }}</span>
               <span class="tx-date">{{ tx.created_at | date:'medium' }}</span>
               @if (tx.notes) { <span class="tx-notes">{{ tx.notes }}</span> }
+              <div class="tx-services">
+                @for (item of loyaltyItems(tx); track item.id) {
+                  <span class="svc-chip">{{ item.service_name }}{{ item.quantity > 1 ? ' ×' + item.quantity : '' }}</span>
+                }
+              </div>
             </div>
             <div class="tx-right">
               <span class="tx-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
@@ -80,6 +85,8 @@ import { LoyaltyEntry, Transaction } from '../../../models/models';
     .tx-notes { font-size: 0.75rem; font-style: italic; opacity: 0.7; }
     .tx-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     .tx-total { font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+    .tx-services { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .svc-chip { font-size: 0.72rem; background: rgba(var(--ion-color-primary-rgb),0.12); color: var(--ion-color-primary); border-radius: 10px; padding: 2px 8px; white-space: nowrap; }
   `],
 })
 export class LoyaltyTransactionsModalComponent implements OnInit {
@@ -105,6 +112,10 @@ export class LoyaltyTransactionsModalComponent implements OnInit {
 
   paymentColor(method: string): string {
     return method === 'cash' ? 'success' : method === 'card' ? 'primary' : 'warning';
+  }
+
+  loyaltyItems(tx: Transaction): TransactionItem[] {
+    return (tx.items ?? []).filter(i => i.item_type !== 'product');
   }
 
   dismiss(): void {
