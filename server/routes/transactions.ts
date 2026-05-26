@@ -23,16 +23,18 @@ transactionsRouter.post('/', (req, res) => {
   const { items, payment_method, amount_tendered, notes, phone_number } = req.body;
   if (!items?.length) return res.status(400).json({ error: 'items required' });
 
+  const isPending = req.body.status === 'pending';
   const subtotal: number = items.reduce((s: number, i: { price: number; quantity: number }) => s + i.price * i.quantity, 0);
-  const tax = parseFloat((subtotal * 0.0).toFixed(2)); // configurable - no tax for now
+  const tax = parseFloat((subtotal * 0.0).toFixed(2));
   const total = parseFloat((subtotal + tax).toFixed(2));
-  const change_due = Math.max(0, parseFloat(((amount_tendered ?? total) - total).toFixed(2)));
+  const change_due = isPending ? 0 : Math.max(0, parseFloat(((amount_tendered ?? total) - total).toFixed(2)));
+  const txStatus = isPending ? 'pending' : 'paid';
 
   const saveTx = db.transaction(() => {
     const txResult = db.prepare(
-      `INSERT INTO transactions (subtotal, tax, total, payment_method, amount_tendered, change_due, phone_number, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(subtotal, tax, total, payment_method ?? 'cash', amount_tendered ?? total, change_due, phone_number ?? '', notes ?? '');
+      `INSERT INTO transactions (subtotal, tax, total, payment_method, amount_tendered, change_due, phone_number, notes, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(subtotal, tax, total, isPending ? 'unpaid' : (payment_method ?? 'cash'), isPending ? 0 : (amount_tendered ?? total), change_due, phone_number ?? '', notes ?? '', txStatus);
 
     const txId = txResult.lastInsertRowid;
     const insertItem = db.prepare(
@@ -49,6 +51,23 @@ transactionsRouter.post('/', (req, res) => {
   const tx = db.prepare('SELECT * FROM transactions WHERE id=?').get(id);
   const txItems = db.prepare('SELECT * FROM transaction_items WHERE transaction_id=?').all(id);
   res.status(201).json({ ...tx as object, items: txItems });
+});
+
+transactionsRouter.patch('/:id/payment', (req, res) => {
+  const { payment_method, amount_tendered, change_due } = req.body;
+  if (!payment_method) return res.status(400).json({ error: 'payment_method required' });
+
+  const tx = db.prepare('SELECT * FROM transactions WHERE id=?').get(req.params['id']) as { status: string } | undefined;
+  if (!tx) return res.status(404).json({ error: 'Not found' });
+  if (tx.status !== 'pending') return res.status(409).json({ error: 'Transaction is already paid' });
+
+  db.prepare(
+    `UPDATE transactions SET payment_method=?, amount_tendered=?, change_due=?, status='paid' WHERE id=?`
+  ).run(payment_method, amount_tendered ?? 0, change_due ?? 0, req.params['id']);
+
+  const updated = db.prepare('SELECT * FROM transactions WHERE id=?').get(req.params['id']);
+  const items = db.prepare('SELECT * FROM transaction_items WHERE transaction_id=?').all(req.params['id']);
+  res.json({ ...updated as object, items });
 });
 
 transactionsRouter.delete('/:id', (req, res) => {

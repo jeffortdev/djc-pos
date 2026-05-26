@@ -75,16 +75,23 @@ import { BrandingService } from '../../../services/branding.service';
           <div class="rt-row rt-total">
             <strong>TOTAL</strong><strong>{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</strong>
           </div>
-          <div class="rt-row">
-            <span>Payment</span><span>{{ tx.payment_method | uppercase }}</span>
-          </div>
-          @if (tx.payment_method === 'cash' && tx.change_due >= 0) {
-            <div class="rt-row">
-              <span>Tendered</span><span>{{ tx.amount_tendered | currency:'PHP':'symbol':'1.2-2' }}</span>
+          @if ((tx.status ?? 'paid') === 'pending') {
+            <div class="rt-row pending-due">
+              <span>Payment</span>
+              <span class="pending-label">Due on Pickup</span>
             </div>
+          } @else {
             <div class="rt-row">
-              <span>Change</span><span>{{ tx.change_due | currency:'PHP':'symbol':'1.2-2' }}</span>
+              <span>Payment</span><span>{{ tx.payment_method | uppercase }}</span>
             </div>
+            @if (tx.payment_method === 'cash' && tx.change_due >= 0) {
+              <div class="rt-row">
+                <span>Tendered</span><span>{{ tx.amount_tendered | currency:'PHP':'symbol':'1.2-2' }}</span>
+              </div>
+              <div class="rt-row">
+                <span>Change</span><span>{{ tx.change_due | currency:'PHP':'symbol':'1.2-2' }}</span>
+              </div>
+            }
           }
         </div>
 
@@ -117,6 +124,7 @@ import { BrandingService } from '../../../services/branding.service';
     .receipt-totals { padding: 12px 0; display: flex; flex-direction: column; gap: 6px; }
     .rt-row { display: flex; justify-content: space-between; font-size: 0.9rem; }
     .rt-total { font-size: 1rem; border-top: 1px dashed var(--ion-border-color); padding-top: 6px; margin-top: 4px; }
+    .pending-due .pending-label { color: var(--ion-color-warning-shade); font-weight: 600; }
     .receipt-notes { font-style: italic; font-size: 0.8rem; opacity: 0.6; text-align: center; margin: 8px 0 0; }
     .receipt-thanks { text-align: center; font-size: 0.85rem; opacity: 0.7; margin: 12px 0 0; }
     .done-btn { margin: 8px; }

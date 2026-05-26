@@ -9,7 +9,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   cashOutline, cardOutline, phonePortraitOutline,
-  checkmarkDoneOutline, closeOutline, swapHorizontalOutline
+  checkmarkDoneOutline, closeOutline, swapHorizontalOutline, hourglassOutline
 } from 'ionicons/icons';
 import { CartItem } from '../../../models/models';
 import { BrandingService } from '../../../services/branding.service';
@@ -155,6 +155,12 @@ export interface PaymentResult {
           <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
           Confirm Payment — {{ total | currency:'PHP':'symbol':'1.2-2' }}
         </ion-button>
+        @if (allowPayLater) {
+          <ion-button expand="block" fill="outline" color="warning" (click)="registerPickup()" style="margin-top:8px">
+            <ion-icon name="hourglass-outline" slot="start"></ion-icon>
+            Register — Pay on Pickup
+          </ion-button>
+        }
       </div>
     </ion-content>
   `,
@@ -180,6 +186,9 @@ export interface PaymentResult {
 })
 export class PaymentModalComponent implements OnInit {
   @Input() cart: CartItem[] = [];
+  @Input() allowPayLater = true;
+  @Input() prefillCustomerName = '';
+  @Input() prefillPhone = '';
 
   method = 'cash';
   tendered = 0;
@@ -194,11 +203,13 @@ export class PaymentModalComponent implements OnInit {
     private db: DatabaseService,
     private alertCtrl: AlertController,
   ) {
-    addIcons({ cashOutline, cardOutline, phonePortraitOutline, checkmarkDoneOutline, closeOutline, swapHorizontalOutline });
+    addIcons({ cashOutline, cardOutline, phonePortraitOutline, checkmarkDoneOutline, closeOutline, swapHorizontalOutline, hourglassOutline });
   }
 
   ngOnInit(): void {
     this.tendered = this.total;
+    if (this.prefillCustomerName) this.customerName = this.prefillCustomerName;
+    if (this.prefillPhone) this.phoneNumber = this.prefillPhone;
   }
 
   onNameChange(value: string): void {
@@ -278,5 +289,17 @@ export class PaymentModalComponent implements OnInit {
       notes: this.notes,
     };
     this.modalCtrl.dismiss({ confirmed: true, result });
+  }
+
+  registerPickup(): void {
+    this.modalCtrl.dismiss({
+      confirmed: true,
+      payLater: true,
+      result: {
+        customer_name: this.customerName,
+        phone_number: this.phoneNumber,
+        notes: this.notes,
+      },
+    });
   }
 }

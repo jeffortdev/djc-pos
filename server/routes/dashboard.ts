@@ -11,6 +11,7 @@ dashboardRouter.get('/today', (_req, res) => {
       COALESCE(AVG(total), 0) as avg_ticket
     FROM transactions
     WHERE date(created_at) = date('now','localtime')
+      AND (status IS NULL OR status = 'paid')
   `).get();
 
   const topServices = db.prepare(`
@@ -18,6 +19,7 @@ dashboardRouter.get('/today', (_req, res) => {
     FROM transaction_items ti
     JOIN transactions t ON t.id = ti.transaction_id
     WHERE date(t.created_at) = date('now','localtime')
+      AND (t.status IS NULL OR t.status = 'paid')
     GROUP BY ti.service_name
     ORDER BY revenue DESC
     LIMIT 5

@@ -36,7 +36,8 @@ db.exec(`
     change_due     REAL    NOT NULL DEFAULT 0,
     phone_number   TEXT    NOT NULL DEFAULT '',
     notify_count   INTEGER NOT NULL DEFAULT 0,
-    notes          TEXT    NOT NULL DEFAULT ''
+    notes          TEXT    NOT NULL DEFAULT '',
+    status         TEXT    NOT NULL DEFAULT 'paid'
   );
 
   CREATE TABLE IF NOT EXISTS transaction_items (
@@ -58,6 +59,9 @@ if (!txCols.find(c => c.name === 'phone_number')) {
 }
 if (!txCols.find(c => c.name === 'notify_count')) {
   db.exec('ALTER TABLE transactions ADD COLUMN notify_count INTEGER NOT NULL DEFAULT 0');
+}
+if (!txCols.find(c => c.name === 'status')) {
+  db.exec("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'paid'");
 }
 
 // Seed default services if table is empty

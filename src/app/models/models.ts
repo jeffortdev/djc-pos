@@ -54,6 +54,7 @@ export interface Transaction {
   phone_number?: string;
   notes: string;
   notify_count?: number;
+  status?: 'pending' | 'paid';
   items?: TransactionItem[];
 }
 

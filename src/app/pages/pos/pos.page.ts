@@ -526,23 +526,35 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
 
     this.api.createTransaction({
       items: this.cart,
-      payment_method: data.result.payment_method,
-      amount_tendered: data.result.amount_tendered,
+      payment_method: data.payLater ? 'unpaid' : data.result.payment_method,
+      amount_tendered: data.payLater ? 0 : data.result.amount_tendered,
       customer_name: data.result.customer_name,
       phone_number: data.result.phone_number,
       notes: data.result.notes,
+      status: data.payLater ? 'pending' : 'paid',
     }).subscribe({
       next: async tx => {
+        // Always decrement stock for product items (reserved on order registration)
         const productItems = this.cart.filter(i => i.item_type === 'product');
         for (const item of productItems) {
           this.api.adjustProductStock(item.service_id, -item.quantity, 'sale').subscribe();
         }
         this.cart = [];
-        const receiptModal = await this.modalCtrl.create({
-          component: ReceiptModalComponent,
-          componentProps: { tx },
-        });
-        await receiptModal.present();
+
+        if (data.payLater) {
+          const toast = await this.toastCtrl.create({
+            message: `Order #${tx.id} registered. Payment due on pickup.`,
+            duration: 3500,
+            color: 'warning',
+          });
+          await toast.present();
+        } else {
+          const receiptModal = await this.modalCtrl.create({
+            component: ReceiptModalComponent,
+            componentProps: { tx },
+          });
+          await receiptModal.present();
+        }
       },
       error: async () => {
         const toast = await this.toastCtrl.create({ message: 'Transaction failed.', duration: 3000, color: 'danger' });

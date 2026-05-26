@@ -10,11 +10,12 @@ import {
   ModalController, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline } from 'ionicons/icons';
+import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline, hourglassOutline, cashOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
-import { Transaction, StockEntry } from '../../models/models';
+import { Transaction, StockEntry, CartItem } from '../../models/models';
 import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.component';
+import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.component';
 
 @Component({
   selector: 'app-transactions',
@@ -84,9 +85,16 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
                     </div>
                     <div class="tx-right">
                       <span class="tx-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
-                      <ion-chip [color]="paymentColor(tx.payment_method)" size="small">
-                        <ion-label>{{ tx.payment_method }}</ion-label>
-                      </ion-chip>
+                      @if ((tx.status ?? 'paid') === 'pending') {
+                        <ion-chip color="warning" size="small">
+                          <ion-icon name="hourglass-outline" slot="start" aria-hidden="true"></ion-icon>
+                          <ion-label>Pending</ion-label>
+                        </ion-chip>
+                      } @else {
+                        <ion-chip [color]="paymentColor(tx.payment_method)" size="small">
+                          <ion-label>{{ tx.payment_method }}</ion-label>
+                        </ion-chip>
+                      }
                     </div>
                   </div>
                   <div class="tx-actions">
@@ -94,6 +102,12 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
                       <ion-icon name="eye-outline" slot="start"></ion-icon>
                       Receipt
                     </ion-button>
+                    @if ((tx.status ?? 'paid') === 'pending') {
+                      <ion-button fill="solid" color="success" size="small" (click)="acceptPayment(tx)">
+                        <ion-icon name="cash-outline" slot="start"></ion-icon>
+                        Accept Payment
+                      </ion-button>
+                    }
                     @if (tx.phone_number) {
                       <ion-button fill="outline" color="success" size="small" (click)="sendPickupSms(tx)">
                         <ion-icon name="chatbubble-outline" slot="start"></ion-icon>
@@ -235,7 +249,7 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline });
+    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline, hourglassOutline, cashOutline });
   }
 
   ngOnInit(): void { }
@@ -324,6 +338,60 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
         componentProps: { tx: full },
       });
       await modal.present();
+    });
+  }
+
+  async acceptPayment(tx: Transaction): Promise<void> {
+    const full = await firstValueFrom(this.api.getTransaction(tx.id));
+    const cartItems: CartItem[] = (full.items ?? []).map(i => ({
+      service_id: i.service_id,
+      service_name: i.service_name,
+      unit: i.unit,
+      price: i.price,
+      quantity: i.quantity,
+      item_type: i.item_type,
+    }));
+
+    const modal = await this.modalCtrl.create({
+      component: PaymentModalComponent,
+      componentProps: {
+        cart: cartItems,
+        allowPayLater: false,
+        prefillCustomerName: full.customer_name ?? '',
+        prefillPhone: full.phone_number ?? '',
+      },
+    });
+    await modal.present();
+    const { data } = await modal.onWillDismiss();
+    if (!data?.confirmed) return;
+
+    this.api.acceptPayment(full.id, {
+      payment_method: data.result.payment_method,
+      amount_tendered: data.result.amount_tendered,
+      change_due: data.result.change_due,
+    }).subscribe({
+      next: async paidTx => {
+        const idx = this.transactions.findIndex(t => t.id === full.id);
+        if (idx >= 0) {
+          this.transactions[idx] = {
+            ...this.transactions[idx],
+            status: 'paid',
+            payment_method: data.result.payment_method,
+          };
+          this.transactions = [...this.transactions];
+        }
+        const toast = await this.toastCtrl.create({ message: 'Payment accepted!', duration: 2500, color: 'success' });
+        await toast.present();
+        const receiptModal = await this.modalCtrl.create({
+          component: ReceiptModalComponent,
+          componentProps: { tx: paidTx },
+        });
+        await receiptModal.present();
+      },
+      error: async () => {
+        const toast = await this.toastCtrl.create({ message: 'Failed to accept payment.', duration: 3000, color: 'danger' });
+        await toast.present();
+      },
     });
   }
 
