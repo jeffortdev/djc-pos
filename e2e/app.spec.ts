@@ -33,7 +33,7 @@ test('load reports page and show custom date filter inputs', async ({ page }) =>
   await page.goto('/reports');
 
   await expect(page.getByText('Today')).toBeVisible();
-  await expect(page.getByText('Custom')).toBeVisible();
+  await expect(page.locator('ion-segment-button[value="custom"] ion-label')).toBeVisible();
   const customButton = page.locator('ion-segment-button[value="custom"]');
   await customButton.click({ force: true });
   await expect(customButton).toHaveClass(/segment-button-checked/);
