@@ -635,16 +635,16 @@ export class DatabaseService {
     }));
   }
 
-  getPaidWithPhone(limit = 30): Observable<Transaction[]> {
+  getAwaitingPickup(limit = 30): Observable<Transaction[]> {
     return from(this.ready.then(async () => {
       if (!this.isNative) {
         return [...this.local.getTransactions()]
-          .filter(t => (t.status ?? 'paid') === 'paid' && !!t.phone_number)
+          .filter(t => (t.status ?? 'paid') === 'paid')
           .sort((a, b) => b.created_at.localeCompare(a.created_at))
           .slice(0, limit);
       }
       const r = await this.sqliteStore!.query(
-        "SELECT * FROM transactions WHERE status='paid' AND phone_number != '' ORDER BY created_at DESC LIMIT ?",
+        "SELECT * FROM transactions WHERE status='paid' ORDER BY created_at DESC LIMIT ?",
         [limit]
       );
       return (r.values ?? []) as Transaction[];

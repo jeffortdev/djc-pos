@@ -155,18 +155,20 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                       <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
                     </div>
                     <div class="action-btns">
-                      <div class="icon-btn-wrap">
-                        <ion-button fill="clear" color="success"
-                          (click)="notifyPickup(tx)"
-                          (touchstart)="startLongPress('Notify Customer')"
-                          (touchend)="endLongPress()"
-                          (touchmove)="endLongPress()">
-                          <ion-icon name="chatbubble-outline" slot="icon-only"></ion-icon>
-                        </ion-button>
-                        @if ((tx.notify_count ?? 0) > 0) {
-                          <span class="notify-badge">{{ tx.notify_count }}</span>
-                        }
-                      </div>
+                      @if (tx.phone_number) {
+                        <div class="icon-btn-wrap">
+                          <ion-button fill="clear" color="success"
+                            (click)="notifyPickup(tx)"
+                            (touchstart)="startLongPress('Notify Customer')"
+                            (touchend)="endLongPress()"
+                            (touchmove)="endLongPress()">
+                            <ion-icon name="chatbubble-outline" slot="icon-only"></ion-icon>
+                          </ion-button>
+                          @if ((tx.notify_count ?? 0) > 0) {
+                            <span class="notify-badge">{{ tx.notify_count }}</span>
+                          }
+                        </div>
+                      }
                       <ion-button fill="clear" color="primary"
                         (click)="markPickedUp(tx)"
                         (touchstart)="startLongPress('Mark as Picked Up')"
@@ -597,7 +599,7 @@ export class DashboardPage implements OnInit, ViewWillEnter {
     this.api.getPendingTransactions().subscribe({
       next: pending => {
         this.pendingOrders = pending;
-        this.api.getPaidWithPhone().subscribe({
+        this.api.getAwaitingPickup().subscribe({
           next: pickup => { this.pickupOrders = pickup; this.actionLoading = false; },
           error: () => { this.actionLoading = false; },
         });
@@ -651,7 +653,7 @@ export class DashboardPage implements OnInit, ViewWillEnter {
           const toast = await this.toastCtrl.create({ message: 'Payment accepted & order marked as picked up!', duration: 2500, color: 'success' });
           await toast.present();
         } else {
-          if (paidTx.phone_number) { this.pickupOrders = [paidTx, ...this.pickupOrders]; }
+          this.pickupOrders = [paidTx, ...this.pickupOrders];
           this.load();
           const toast = await this.toastCtrl.create({ message: 'Payment accepted!', duration: 2500, color: 'success' });
           await toast.present();

@@ -179,7 +179,7 @@ A persistent bottom `IonTabBar` with five tabs. The **Settings** tab uses a clic
 |---|---|
 | Cash-in-register card | Shows real-time register balance (cash sales + manually added cash). "Add Cash" button prompts for amount and note |
 | Action Required — Unpaid | Lists all `pending` transactions. Per-row actions: **Edit** (navigate to POS edit mode), **Accept Payment** (open `PaymentModalComponent`), **Notify** (send SMS — badge on button shows send count), **Delete** (PIN-protected) |
-| Action Required — Awaiting Pickup | Lists all `paid` transactions with a phone number. Per-row actions: **Notify** (SMS with badge), **Mark Picked Up** (confirm dialog → sets `status: 'picked_up'`) |
+| Action Required — Awaiting Pickup | Lists all `paid` transactions (every paid order must be picked up). Per-row actions: **Notify** (SMS with badge, shown only when phone number present), **Mark Picked Up** (confirm dialog → sets `status: 'picked_up'`) |
 | Today's KPIs | Transaction count, total revenue, average ticket value |
 | Payment breakdown chips | Shows today's totals split by cash / card / GCash |
 | Top 5 services | Ranked by revenue, displayed as chips |
@@ -359,7 +359,7 @@ Every transaction passes through a defined state machine. Transitions are enforc
 | Status | Meaning | Visible on Dashboard | Visible in History |
 |--------|---------|---------------------|-------------------|
 | `pending` | Order logged, payment not yet collected | ✅ Unpaid section | ✅ Amber hourglass chip |
-| `paid` | Payment accepted; awaiting customer pickup | ✅ Awaiting Pickup section (if phone number present) | ✅ Payment-method chip |
+| `paid` | Payment accepted; awaiting customer pickup | ✅ Awaiting Pickup section (all paid orders) | ✅ Payment-method chip |
 | `picked_up` | Customer has collected their order — closed | ❌ Hidden | ✅ Green "Picked Up" chip |
 
 **Rules enforced by the app:**
