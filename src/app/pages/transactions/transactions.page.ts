@@ -99,7 +99,7 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                   </div>
                   <div class="tx-actions">
                     <ion-button fill="clear" size="small"
-                      (click)="guardTap(() => viewReceipt(tx))"
+                      (click)="onReceiptTap(tx)"
                       (touchstart)="startLongPress('View Receipt')"
                       (touchend)="endLongPress()"
                       (touchmove)="endLongPress()">
@@ -107,7 +107,7 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                     </ion-button>
                     @if ((tx.status ?? 'paid') === 'pending') {
                       <ion-button fill="clear" color="success" size="small"
-                        (click)="guardTap(() => acceptPayment(tx))"
+                        (click)="onAcceptTap(tx)"
                         (touchstart)="startLongPress('Accept Payment')"
                         (touchend)="endLongPress()"
                         (touchmove)="endLongPress()">
@@ -117,7 +117,7 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                     @if (tx.phone_number) {
                       <div class="icon-btn-wrap">
                         <ion-button fill="clear" color="success" size="small"
-                          (click)="guardTap(() => sendPickupSms(tx))"
+                          (click)="onNotifyTap(tx)"
                           (touchstart)="startLongPress('Notify Customer')"
                           (touchend)="endLongPress()"
                           (touchmove)="endLongPress()">
@@ -129,7 +129,7 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                       </div>
                     }
                     <ion-button fill="clear" color="danger" size="small"
-                      (click)="guardTap(() => deleteTransaction(tx))"
+                      (click)="onDeleteTap(tx)"
                       (touchstart)="startLongPress('Delete Transaction')"
                       (touchend)="endLongPress()"
                       (touchmove)="endLongPress()">
@@ -490,12 +490,24 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     }
   }
 
-  guardTap(action: () => void): void {
-    if (this.longPressActive) {
-      this.longPressActive = false;
-      return;
-    }
-    action();
+  onReceiptTap(tx: Transaction): void {
+    if (this.longPressActive) { this.longPressActive = false; return; }
+    this.viewReceipt(tx);
+  }
+
+  onAcceptTap(tx: Transaction): void {
+    if (this.longPressActive) { this.longPressActive = false; return; }
+    this.acceptPayment(tx);
+  }
+
+  onNotifyTap(tx: Transaction): void {
+    if (this.longPressActive) { this.longPressActive = false; return; }
+    this.sendPickupSms(tx);
+  }
+
+  onDeleteTap(tx: Transaction): void {
+    if (this.longPressActive) { this.longPressActive = false; return; }
+    this.deleteTransaction(tx);
   }
 
   async sendPickupSms(tx: Transaction): Promise<void> {
