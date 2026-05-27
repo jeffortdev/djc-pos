@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon,
   IonList, IonItem, IonLabel, IonSegment, IonSegmentButton, IonInput,
-  IonButtons, ModalController, AlertController
+  IonButtons, IonToggle, ModalController, AlertController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -22,6 +22,7 @@ export interface PaymentResult {
   customer_name: string;
   phone_number: string;
   notes: string;
+  mark_picked_up?: boolean;
 }
 
 @Component({
@@ -31,7 +32,7 @@ export interface PaymentResult {
     CommonModule, CurrencyPipe, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon,
     IonList, IonItem, IonLabel, IonSegment, IonSegmentButton, IonInput,
-    IonButtons,
+    IonButtons, IonToggle,
   ],
   providers: [ModalController, AlertController],
   template: `
@@ -150,6 +151,16 @@ export interface PaymentResult {
         </ion-item>
       </ion-list>
 
+      @if (showPickupOption) {
+        <ion-list>
+          <ion-item>
+            <ion-icon name="checkmark-done-outline" slot="start" color="success"></ion-icon>
+            <ion-label>Mark as Picked Up now</ion-label>
+            <ion-toggle slot="end" [(ngModel)]="markPickedUpNow"></ion-toggle>
+          </ion-item>
+        </ion-list>
+      }
+
       <div class="confirm-wrap">
         <ion-button expand="block" [disabled]="!canConfirm" (click)="confirm()" color="primary">
           <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
@@ -189,12 +200,14 @@ export class PaymentModalComponent implements OnInit {
   @Input() allowPayLater = true;
   @Input() prefillCustomerName = '';
   @Input() prefillPhone = '';
+  @Input() showPickupOption = false;
 
   method = 'cash';
   tendered = 0;
   customerName = '';
   phoneNumber = '';
   notes = '';
+  markPickedUpNow = false;
   suggestions: { name: string; phone_number: string }[] = [];
 
   constructor(
@@ -287,6 +300,7 @@ export class PaymentModalComponent implements OnInit {
       customer_name: this.customerName,
       phone_number: this.phoneNumber,
       notes: this.notes,
+      mark_picked_up: this.showPickupOption ? this.markPickedUpNow : false,
     };
     this.modalCtrl.dismiss({ confirmed: true, result });
   }

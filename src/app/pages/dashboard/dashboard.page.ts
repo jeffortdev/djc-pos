@@ -631,11 +631,13 @@ export class DashboardPage implements OnInit, ViewWillEnter {
         allowPayLater: false,
         prefillCustomerName: full.customer_name ?? '',
         prefillPhone: full.phone_number ?? '',
+        showPickupOption: true,
       },
     });
     await modal.present();
     const { data } = await modal.onWillDismiss();
     if (!data?.confirmed) return;
+    const alsoPickUp: boolean = !!data.result.mark_picked_up;
     this.api.acceptPayment(full.id, {
       payment_method: data.result.payment_method,
       amount_tendered: data.result.amount_tendered,
@@ -643,10 +645,17 @@ export class DashboardPage implements OnInit, ViewWillEnter {
     }).subscribe({
       next: async paidTx => {
         this.pendingOrders = this.pendingOrders.filter(t => t.id !== full.id);
-        if (paidTx.phone_number) { this.pickupOrders = [paidTx, ...this.pickupOrders]; }
-        this.load();
-        const toast = await this.toastCtrl.create({ message: 'Payment accepted!', duration: 2500, color: 'success' });
-        await toast.present();
+        if (alsoPickUp) {
+          await firstValueFrom(this.api.markPickedUp(paidTx.id));
+          this.load();
+          const toast = await this.toastCtrl.create({ message: 'Payment accepted & order marked as picked up!', duration: 2500, color: 'success' });
+          await toast.present();
+        } else {
+          if (paidTx.phone_number) { this.pickupOrders = [paidTx, ...this.pickupOrders]; }
+          this.load();
+          const toast = await this.toastCtrl.create({ message: 'Payment accepted!', duration: 2500, color: 'success' });
+          await toast.present();
+        }
         const receiptModal = await this.modalCtrl.create({
           component: ReceiptModalComponent,
           componentProps: { tx: paidTx },

@@ -338,20 +338,23 @@ A persistent bottom `IonTabBar` with five tabs. The **Settings** tab uses a clic
 
 ## Transaction Status Lifecycle
 
-Every transaction passes through a defined state machine. Transitions are enforced in `DatabaseService`.
+Every transaction passes through a defined state machine. Transitions are enforced in `DatabaseService` and the Dashboard.
 
 ```
-  [POS — Charge]          [POS — Pending]
-        │                       │
-        ▼                       ▼
-     'paid'  ◄──────────── 'pending'
-        │         accept         │
-        │         payment        │ edit items
-        │                        │ (POS edit mode)
-        ▼
-   'picked_up'
-   (terminal — no further transitions)
+  [POS — Charge / Pay Now]    [POS — Pay on Pickup]
+              │                        │
+              ▼                        ▼
+           'paid' ◄─────────────── 'pending'
+              │        accept           │
+              │        payment          │ edit items
+              │        (Dashboard)      │ (POS edit mode via Dashboard)
+              │
+              ▼
+         'picked_up'
+         (terminal — no further transitions)
 ```
+
+**Paid + Picked Up simultaneously** — When accepting payment on the Dashboard for a pending order, a "Mark as Picked Up now" toggle is available. Enabling it transitions the order directly from `pending` → `paid` → `picked_up` in one action, skipping the Awaiting Pickup queue.
 
 | Status | Meaning | Visible on Dashboard | Visible in History |
 |--------|---------|---------------------|-------------------|
@@ -360,8 +363,10 @@ Every transaction passes through a defined state machine. Transitions are enforc
 | `picked_up` | Customer has collected their order — closed | ❌ Hidden | ✅ Green "Picked Up" chip |
 
 **Rules enforced by the app:**
-- A `pending` order can have items edited (via POS edit mode) and payment accepted at any time.
+- A `pending` order can have items edited (via POS edit mode, launched from Dashboard) and payment accepted at any time.
 - `markPickedUp()` is blocked unless the transaction is currently `paid` — you cannot skip payment.
+- Payment and pickup can happen simultaneously via the "Mark as Picked Up now" toggle in the Dashboard payment modal.
+- Pickup can only be actioned from the **Dashboard** — the POS page creates orders only (`pending` or `paid`; never `picked_up`).
 - Revenue KPIs and reports count both `paid` **and** `picked_up` transactions so revenue is never lost when an order is closed out.
 - The Dashboard "Recent Transactions" and "Awaiting Pickup" sections only show open orders (`pending` and `paid`).
 
