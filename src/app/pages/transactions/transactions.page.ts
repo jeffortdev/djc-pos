@@ -9,7 +9,7 @@ import {
   ModalController, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline } from 'ionicons/icons';
+import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline, checkmarkDoneOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { Transaction, StockEntry } from '../../models/models';
@@ -87,6 +87,11 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
                         <ion-chip color="warning" size="small">
                           <ion-icon name="hourglass-outline" slot="start" aria-hidden="true"></ion-icon>
                           <ion-label>Pending</ion-label>
+                        </ion-chip>
+                      } @else if (tx.status === 'picked_up') {
+                        <ion-chip color="success" size="small">
+                          <ion-icon name="checkmark-done-outline" slot="start" aria-hidden="true"></ion-icon>
+                          <ion-label>Picked Up</ion-label>
                         </ion-chip>
                       } @else {
                         <ion-chip [color]="paymentColor(tx.payment_method)" size="small">
@@ -241,7 +246,7 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline });
+    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline, checkmarkDoneOutline });
   }
 
   ngOnInit(): void { }

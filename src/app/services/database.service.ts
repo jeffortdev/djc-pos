@@ -238,7 +238,7 @@ export class DatabaseService {
     const existingTx = this.local.getTransactions();
     if (existingTx.some(t => (t as any).status == null)) {
       this.local.saveTransactions(
-        existingTx.map(t => ({ ...t, status: (t as any).status ?? 'paid' }))
+        existingTx.map(t => ({ ...t, status: (t as any).status ?? 'paid' as Transaction['status'] }))
       );
     }
   }
@@ -644,10 +644,26 @@ export class DatabaseService {
           .slice(0, limit);
       }
       const r = await this.sqliteStore!.query(
-        "SELECT * FROM transactions WHERE (status IS NULL OR status='paid') AND phone_number != '' ORDER BY created_at DESC LIMIT ?",
+        "SELECT * FROM transactions WHERE status='paid' AND phone_number != '' ORDER BY created_at DESC LIMIT ?",
         [limit]
       );
       return (r.values ?? []) as Transaction[];
+    }));
+  }
+
+  markPickedUp(id: number): Observable<{ ok: boolean }> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const tx = this.local.getTransactions().find(t => t.id === id);
+        if (!tx || tx.status !== 'paid') return { ok: false };
+        const list = this.local.getTransactions().map(t =>
+          t.id === id ? { ...t, status: 'picked_up' as const } : t
+        );
+        this.local.saveTransactions(list);
+        return { ok: true };
+      }
+      await this.sqliteStore!.run("UPDATE transactions SET status='picked_up' WHERE id=? AND status='paid'", [id]);
+      return { ok: true };
     }));
   }
 
@@ -800,7 +816,7 @@ export class DatabaseService {
           payment_method: payment_method ?? 'cash',
           amount_tendered: amount_tendered ?? total,
           change_due, customer_name: customer_name ?? '', phone_number: phone_number ?? '', notes: notes ?? '',
-          status: txStatus as 'pending' | 'paid',
+          status: txStatus as Transaction['status'],
           items: items.map((item, i) => ({
             id: i + 1, transaction_id: id,
             service_id: item.service_id, service_name: item.service_name,
@@ -1116,7 +1132,7 @@ export class DatabaseService {
         const today = new Date().toISOString().substring(0, 10);
         const allTx = this.local.getTransactions();
         const txTodayAll = allTx.filter(t => t.created_at.startsWith(today));
-        const txToday = txTodayAll.filter(t => (t.status ?? 'paid') === 'paid');
+        const txToday = txTodayAll.filter(t => (t.status ?? 'paid') === 'paid' || t.status === 'picked_up');
         const revenue = txToday.reduce((s, t) => s + t.total, 0);
         const avg_ticket = txToday.length ? revenue / txToday.length : 0;
         const serviceMap: Record<string, { service_name: string; quantity: number; revenue: number }> = {};
@@ -1128,35 +1144,36 @@ export class DatabaseService {
           }
         }
         const topServices = Object.values(serviceMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-        const cashFromTx = allTx.filter(t => t.payment_method === 'cash' && (t.status ?? 'paid') === 'paid').reduce((s, t) => s + t.total, 0);
+        const cashFromTx = allTx.filter(t => t.payment_method === 'cash' && ((t.status ?? 'paid') === 'paid' || t.status === 'picked_up')).reduce((s, t) => s + t.total, 0);
         const cashAdded = this.local.getRegisterEntries().reduce((s, e) => s + e.amount, 0);
         return {
           transaction_count: txToday.length, revenue, avg_ticket,
           register_balance: parseFloat((cashAdded + cashFromTx).toFixed(2)),
           topServices,
-          recentTransactions: [...txTodayAll].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5)
+          recentTransactions: [...txTodayAll].filter(t => t.status !== 'picked_up').sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5)
         } as DashboardStats;
       }
 
       const todayR = await this.sqliteStore!.query(`
         SELECT COUNT(*) as transaction_count, COALESCE(SUM(total),0) as revenue, COALESCE(AVG(total),0) as avg_ticket
-        FROM transactions WHERE date(created_at) = date('now','localtime') AND (status IS NULL OR status = 'paid')
+        FROM transactions WHERE date(created_at) = date('now','localtime') AND (status IS NULL OR status IN ('paid','picked_up'))
       `);
       const topR = await this.sqliteStore!.query(`
         SELECT ti.service_name, SUM(ti.quantity) as quantity, SUM(ti.subtotal) as revenue
         FROM transaction_items ti JOIN transactions t ON t.id = ti.transaction_id
-        WHERE date(t.created_at) = date('now','localtime') AND (t.status IS NULL OR t.status = 'paid')
+        WHERE date(t.created_at) = date('now','localtime') AND (t.status IS NULL OR t.status IN ('paid','picked_up'))
         GROUP BY ti.service_name ORDER BY revenue DESC LIMIT 5
       `);
       const recentR = await this.sqliteStore!.query(`
         SELECT * FROM transactions WHERE date(created_at) = date('now','localtime')
+        AND (status IS NULL OR status IN ('pending','paid'))
         ORDER BY created_at DESC LIMIT 5
       `);
       const regR = await this.sqliteStore!.query(
         `SELECT COALESCE(SUM(amount),0) as cash_added FROM register_entries`
       );
       const cashTxR = await this.sqliteStore!.query(
-        `SELECT COALESCE(SUM(total),0) as cash_from_tx FROM transactions WHERE payment_method='cash' AND (status IS NULL OR status = 'paid')`
+        `SELECT COALESCE(SUM(total),0) as cash_from_tx FROM transactions WHERE payment_method='cash' AND (status IS NULL OR status IN ('paid','picked_up'))`
       );
       const register_balance = parseFloat(
         ((regR.values?.[0]?.cash_added ?? 0) + (cashTxR.values?.[0]?.cash_from_tx ?? 0)).toFixed(2)
@@ -1234,7 +1251,7 @@ export class DatabaseService {
     };
     const safeMethod = ['cash', 'card', 'gcash'].includes(paymentMethod) ? paymentMethod : null;
     const methodMatch = (tx: Transaction) => !safeMethod || tx.payment_method === safeMethod;
-    const paidOnly = (tx: Transaction) => (tx.status ?? 'paid') === 'paid';
+    const paidOnly = (tx: Transaction) => (tx.status ?? 'paid') === 'paid' || tx.status === 'picked_up';
     const sumRev = (txs: Transaction[]) => txs.reduce((s, t) => s + t.total, 0);
 
     const currTx = allTx.filter(t => inRange(t, currStart, currEnd) && methodMatch(t) && paidOnly(t));
@@ -1378,8 +1395,8 @@ export class DatabaseService {
     }
 
     // Exclude pending (unpaid) transactions from all metric queries
-    const sf  = ` AND (status IS NULL OR status = 'paid')`;
-    const sfJ = ` AND (t.status IS NULL OR t.status = 'paid')`;
+    const sf  = ` AND (status IS NULL OR status IN ('paid','picked_up'))`;
+    const sfJ = ` AND (t.status IS NULL OR t.status IN ('paid','picked_up'))`;
     pmBaseWhere += sf;
     currWhere   += sf;
     prevWhere   += sf;

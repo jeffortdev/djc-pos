@@ -13,7 +13,7 @@ import {
   cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline,
   checkmarkCircleOutline, cardOutline, phonePortraitOutline,
   walletOutline, addCircleOutline, removeOutline,
-  chatbubbleOutline, trashOutline, hourglassOutline, createOutline
+  chatbubbleOutline, trashOutline, hourglassOutline, createOutline, checkmarkDoneOutline
 } from 'ionicons/icons';
 import { firstValueFrom } from 'rxjs';
 import { DatabaseService } from '../../services/database.service';
@@ -167,6 +167,13 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                           <span class="notify-badge">{{ tx.notify_count }}</span>
                         }
                       </div>
+                      <ion-button fill="clear" color="primary"
+                        (click)="markPickedUp(tx)"
+                        (touchstart)="startLongPress('Mark as Picked Up')"
+                        (touchend)="endLongPress()"
+                        (touchmove)="endLongPress()">
+                        <ion-icon name="checkmark-done-outline" slot="icon-only"></ion-icon>
+                      </ion-button>
                     </div>
                   </div>
                 }
@@ -420,7 +427,7 @@ export class DashboardPage implements OnInit, ViewWillEnter {
   }
 
   constructor(private api: DatabaseService, private alertCtrl: AlertController, private toastCtrl: ToastController, private modalCtrl: ModalController, private router: Router, public branding: BrandingService) {
-    addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline, hourglassOutline, createOutline });
+    addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline, hourglassOutline, createOutline, checkmarkDoneOutline });
   }
 
   ngOnInit(): void { this.load(); this.loadSummary(); this.loadLoyalty(); this.loadActionItems(); }
@@ -711,6 +718,28 @@ export class DashboardPage implements OnInit, ViewWillEnter {
     this.api.incrementNotifyCount(tx.id).subscribe(() => {
       tx.notify_count = (tx.notify_count ?? 0) + 1;
     });
+  }
+
+  async markPickedUp(tx: Transaction): Promise<void> {
+    if (this.longPressActive) { this.longPressActive = false; return; }
+    const alert = await this.alertCtrl.create({
+      header: 'Mark as Picked Up',
+      message: `Confirm order #${tx.id}${tx.customer_name ? ' for ' + tx.customer_name : ''} has been picked up?`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Confirm',
+          handler: () => {
+            this.api.markPickedUp(tx.id).subscribe(async () => {
+              this.pickupOrders = this.pickupOrders.filter(t => t.id !== tx.id);
+              const toast = await this.toastCtrl.create({ message: `Order #${tx.id} marked as picked up.`, duration: 2000, color: 'success' });
+              await toast.present();
+            });
+          },
+        },
+      ],
+    });
+    await alert.present();
   }
 
   startLongPress(label: string): void {
