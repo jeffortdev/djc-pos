@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Platform } from '@ionic/angular/standalone';
 import { BehaviorSubject, Observable, from } from 'rxjs';
-import { DashboardStats, LaundryService, LoyaltyEntry, Product, Transaction, TransactionItem, DatabaseBackup, ReportStats, ReportBreakdown, RepeatCustomer, StockEntry } from '../models/models';
+import { DashboardStats, LaundryService, LoyaltyEntry, Product, Transaction, TransactionItem, DatabaseBackup, ReportStats, ReportBreakdown, RepeatCustomer, StockEntry, CartItem } from '../models/models';
 
 const DB_NAME = 'djcpos';
 
@@ -621,6 +621,36 @@ export class DatabaseService {
     }));
   }
 
+  getPendingTransactions(): Observable<Transaction[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        return [...this.local.getTransactions()]
+          .filter(t => t.status === 'pending')
+          .sort((a, b) => a.created_at.localeCompare(b.created_at));
+      }
+      const r = await this.sqliteStore!.query(
+        "SELECT * FROM transactions WHERE status='pending' ORDER BY created_at ASC"
+      );
+      return (r.values ?? []) as Transaction[];
+    }));
+  }
+
+  getPaidWithPhone(limit = 30): Observable<Transaction[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        return [...this.local.getTransactions()]
+          .filter(t => (t.status ?? 'paid') === 'paid' && !!t.phone_number)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))
+          .slice(0, limit);
+      }
+      const r = await this.sqliteStore!.query(
+        "SELECT * FROM transactions WHERE (status IS NULL OR status='paid') AND phone_number != '' ORDER BY created_at DESC LIMIT ?",
+        [limit]
+      );
+      return (r.values ?? []) as Transaction[];
+    }));
+  }
+
   /**
    * Returns only the transactions for a phone number that qualify for loyalty tracking:
    * – created after the last redemption for this phone (if any)
@@ -802,6 +832,44 @@ export class DatabaseService {
       const savedItemsR = await this.sqliteStore!.query('SELECT * FROM transaction_items WHERE transaction_id=?', [txId]);
       savedTx.items = (savedItemsR.values ?? []) as any;
       return savedTx;
+    }));
+  }
+
+  updateTransactionItems(id: number, items: CartItem[]): Observable<Transaction> {
+    return from(this.ready.then(async () => {
+      const subtotal = parseFloat(items.reduce((s, i) => s + i.price * i.quantity, 0).toFixed(2));
+      const total = subtotal;
+      if (!this.isNative) {
+        const list = this.local.getTransactions().map(t =>
+          t.id === id
+            ? {
+                ...t, subtotal, total,
+                items: items.map((item, idx) => ({
+                  id: idx + 1, transaction_id: id,
+                  service_id: item.service_id, service_name: item.service_name,
+                  unit: item.unit, price: item.price, quantity: item.quantity,
+                  subtotal: item.price * item.quantity, item_type: item.item_type,
+                }))
+              }
+            : t
+        );
+        this.local.saveTransactions(list);
+        return list.find(t => t.id === id)!;
+      }
+      await this.sqliteStore!.run('UPDATE transactions SET subtotal=?, total=? WHERE id=?', [subtotal, total, id]);
+      await this.sqliteStore!.run('DELETE FROM transaction_items WHERE transaction_id=?', [id]);
+      for (const item of items) {
+        await this.sqliteStore!.run(
+          `INSERT INTO transaction_items (transaction_id, service_id, service_name, unit, price, quantity, subtotal, item_type)
+           VALUES (?,?,?,?,?,?,?,?)`,
+          [id, item.service_id, item.service_name, item.unit, item.price, item.quantity, item.price * item.quantity, item.item_type]
+        );
+      }
+      const txR = await this.sqliteStore!.query('SELECT * FROM transactions WHERE id=?', [id]);
+      const tx = txR.values?.[0] as Transaction;
+      const itemsR = await this.sqliteStore!.query('SELECT * FROM transaction_items WHERE transaction_id=?', [id]);
+      tx.items = (itemsR.values ?? []) as any;
+      return tx;
     }));
   }
 

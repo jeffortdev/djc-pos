@@ -13,13 +13,15 @@ import {
   cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline,
   checkmarkCircleOutline, cardOutline, phonePortraitOutline,
   walletOutline, addCircleOutline, removeOutline,
-  chatbubbleOutline, trashOutline
+  chatbubbleOutline, trashOutline, hourglassOutline, createOutline
 } from 'ionicons/icons';
 import { firstValueFrom } from 'rxjs';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
-import { DashboardStats, LoyaltyEntry, ReportStats } from '../../models/models';
+import { DashboardStats, LoyaltyEntry, ReportStats, Transaction, CartItem } from '../../models/models';
 import { LoyaltyTransactionsModalComponent } from './loyalty-transactions-modal/loyalty-transactions-modal.component';
+import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.component';
+import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -71,6 +73,105 @@ import { LoyaltyTransactionsModalComponent } from './loyalty-transactions-modal/
                 Add Cash
               </ion-button>
             </div>
+          </ion-card-content>
+        </ion-card>
+
+        <!-- Action Required: Pending Payment + Awaiting Pickup -->
+        <ion-card class="action-card">
+          <ion-card-header>
+            <ion-card-title>Action Required</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            @if (actionLoading) {
+              <div class="loading-inline"><ion-spinner name="dots"></ion-spinner></div>
+            } @else if (pendingOrders.length === 0 && pickupOrders.length === 0) {
+              <p class="empty">All clear — no pending orders or pickups.</p>
+            } @else {
+              @if (pendingOrders.length > 0) {
+                <div class="action-section-label">
+                  <ion-icon name="hourglass-outline" color="warning" class="section-icon"></ion-icon>
+                  <span>Unpaid ({{ pendingOrders.length }})</span>
+                </div>
+                @for (tx of pendingOrders; track tx.id) {
+                  <div class="action-row">
+                    <div class="action-info">
+                      <span class="action-id">#{{ tx.id }}</span>
+                      @if (tx.customer_name) { <span class="action-customer">{{ tx.customer_name }}</span> }
+                      <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+                    </div>
+                    <div class="action-btns">
+                      <ion-button fill="clear" color="warning"
+                        (click)="editPendingOrder(tx)"
+                        (touchstart)="startLongPress('Edit Order')"
+                        (touchend)="endLongPress()"
+                        (touchmove)="endLongPress()">
+                        <ion-icon name="create-outline" slot="icon-only"></ion-icon>
+                      </ion-button>
+                      <ion-button fill="clear" color="success"
+                        (click)="acceptPendingPayment(tx)"
+                        (touchstart)="startLongPress('Accept Payment')"
+                        (touchend)="endLongPress()"
+                        (touchmove)="endLongPress()">
+                        <ion-icon name="cash-outline" slot="icon-only"></ion-icon>
+                      </ion-button>
+                      @if (tx.phone_number) {
+                        <div class="icon-btn-wrap">
+                          <ion-button fill="clear" color="success"
+                            (click)="notifyPickup(tx)"
+                            (touchstart)="startLongPress('Notify Customer')"
+                            (touchend)="endLongPress()"
+                            (touchmove)="endLongPress()">
+                            <ion-icon name="chatbubble-outline" slot="icon-only"></ion-icon>
+                          </ion-button>
+                          @if ((tx.notify_count ?? 0) > 0) {
+                            <span class="notify-badge">{{ tx.notify_count }}</span>
+                          }
+                        </div>
+                      }
+                      <ion-button fill="clear" color="danger"
+                        (click)="deletePendingOrder(tx)"
+                        (touchstart)="startLongPress('Delete')"
+                        (touchend)="endLongPress()"
+                        (touchmove)="endLongPress()">
+                        <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+                      </ion-button>
+                    </div>
+                  </div>
+                }
+              }
+              @if (pendingOrders.length > 0 && pickupOrders.length > 0) {
+                <div class="section-divider"></div>
+              }
+              @if (pickupOrders.length > 0) {
+                <div class="action-section-label">
+                  <ion-icon name="receipt-outline" color="primary" class="section-icon"></ion-icon>
+                  <span>Awaiting Pickup ({{ pickupOrders.length }})</span>
+                </div>
+                @for (tx of pickupOrders; track tx.id) {
+                  <div class="action-row">
+                    <div class="action-info">
+                      <span class="action-id">#{{ tx.id }}</span>
+                      @if (tx.customer_name) { <span class="action-customer">{{ tx.customer_name }}</span> }
+                      <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+                    </div>
+                    <div class="action-btns">
+                      <div class="icon-btn-wrap">
+                        <ion-button fill="clear" color="success"
+                          (click)="notifyPickup(tx)"
+                          (touchstart)="startLongPress('Notify Customer')"
+                          (touchend)="endLongPress()"
+                          (touchmove)="endLongPress()">
+                          <ion-icon name="chatbubble-outline" slot="icon-only"></ion-icon>
+                        </ion-button>
+                        @if ((tx.notify_count ?? 0) > 0) {
+                          <span class="notify-badge">{{ tx.notify_count }}</span>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                }
+              }
+            }
           </ion-card-content>
         </ion-card>
 
@@ -282,6 +383,18 @@ import { LoyaltyTransactionsModalComponent } from './loyalty-transactions-modal/
     .loy-filter { display: flex; align-items: center; gap: 6px; }
     .loy-filter-lbl { font-size: 0.72rem; opacity: 0.6; white-space: nowrap; }
     .loy-filter-input { width: 52px; border: 1px solid var(--ion-color-medium); border-radius: 8px; padding: 4px 6px; font-size: 0.85rem; text-align: center; background: transparent; color: var(--ion-text-color); outline: none; }
+    .action-card { margin: 4px 8px; }
+    .action-section-label { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; padding: 4px 0 6px; }
+    .section-icon { font-size: 1rem; }
+    .action-row { display: flex; align-items: center; gap: 4px; padding: 2px 0; border-bottom: 1px solid var(--ion-border-color); }
+    .action-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; }
+    .action-id { font-weight: 700; font-size: 0.88rem; white-space: nowrap; }
+    .action-customer { flex: 1; font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .action-total { font-weight: 700; font-size: 0.88rem; color: var(--ion-color-primary); white-space: nowrap; }
+    .action-btns { display: flex; align-items: center; flex-shrink: 0; }
+    .icon-btn-wrap { position: relative; display: inline-flex; }
+    .notify-badge { position: absolute; top: 6px; right: 6px; display: inline-flex; align-items: center; justify-content: center; background: var(--ion-color-success); color: #fff; border-radius: 50%; width: 14px; height: 14px; font-size: 0.6rem; font-weight: 700; pointer-events: none; }
+    .section-divider { border-top: 1px solid var(--ion-border-color); margin: 8px 0; }
     @media (max-width: 360px) {
       .kpi-value { font-size: 0.9rem; }
     }
@@ -296,18 +409,23 @@ export class DashboardPage implements OnInit, ViewWillEnter {
   loyaltyEntries: LoyaltyEntry[] = [];
   loyaltyLoading = false;
   loyaltyMinVisits = 10;
+  pendingOrders: Transaction[] = [];
+  pickupOrders: Transaction[] = [];
+  actionLoading = false;
+  private _tooltipTimer: ReturnType<typeof setTimeout> | null = null;
+  private longPressActive = false;
 
   get filteredLoyaltyEntries(): LoyaltyEntry[] {
     return this.loyaltyEntries.filter(e => e.visit_count >= this.loyaltyMinVisits);
   }
 
   constructor(private api: DatabaseService, private alertCtrl: AlertController, private toastCtrl: ToastController, private modalCtrl: ModalController, private router: Router, public branding: BrandingService) {
-    addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline });
+    addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline, hourglassOutline, createOutline });
   }
 
-  ngOnInit(): void { this.load(); this.loadSummary(); this.loadLoyalty(); }
+  ngOnInit(): void { this.load(); this.loadSummary(); this.loadLoyalty(); this.loadActionItems(); }
 
-  ionViewWillEnter(): void { this.load(); this.loadSummary(); this.loadLoyalty(); }
+  ionViewWillEnter(): void { this.load(); this.loadSummary(); this.loadLoyalty(); this.loadActionItems(); }
 
   load(): void {
     this.loading = true;
@@ -346,6 +464,7 @@ export class DashboardPage implements OnInit, ViewWillEnter {
   refresh(event: CustomEvent): void {
     this.load();
     this.loadSummary();
+    this.loadActionItems();
     setTimeout(() => (event.target as HTMLIonRefresherElement).complete(), 1000);
   }
 
@@ -464,5 +583,149 @@ export class DashboardPage implements OnInit, ViewWillEnter {
       ],
     });
     await alert.present();
+  }
+
+  loadActionItems(): void {
+    this.actionLoading = true;
+    this.api.getPendingTransactions().subscribe({
+      next: pending => {
+        this.pendingOrders = pending;
+        this.api.getPaidWithPhone().subscribe({
+          next: pickup => { this.pickupOrders = pickup; this.actionLoading = false; },
+          error: () => { this.actionLoading = false; },
+        });
+      },
+      error: () => { this.actionLoading = false; },
+    });
+  }
+
+  editPendingOrder(tx: Transaction): void {
+    if (this.longPressActive) { this.longPressActive = false; return; }
+    this.api.getTransaction(tx.id).subscribe(full => {
+      this.router.navigate(['/pos'], { state: { editTx: full } });
+    });
+  }
+
+  async acceptPendingPayment(tx: Transaction): Promise<void> {
+    if (this.longPressActive) { this.longPressActive = false; return; }
+    const full = await firstValueFrom(this.api.getTransaction(tx.id));
+    const cartItems: CartItem[] = (full.items ?? []).map(i => ({
+      service_id: i.service_id,
+      service_name: i.service_name,
+      unit: i.unit,
+      price: i.price,
+      quantity: i.quantity,
+      item_type: i.item_type,
+    }));
+    const modal = await this.modalCtrl.create({
+      component: PaymentModalComponent,
+      componentProps: {
+        cart: cartItems,
+        allowPayLater: false,
+        prefillCustomerName: full.customer_name ?? '',
+        prefillPhone: full.phone_number ?? '',
+      },
+    });
+    await modal.present();
+    const { data } = await modal.onWillDismiss();
+    if (!data?.confirmed) return;
+    this.api.acceptPayment(full.id, {
+      payment_method: data.result.payment_method,
+      amount_tendered: data.result.amount_tendered,
+      change_due: data.result.change_due,
+    }).subscribe({
+      next: async paidTx => {
+        this.pendingOrders = this.pendingOrders.filter(t => t.id !== full.id);
+        if (paidTx.phone_number) { this.pickupOrders = [paidTx, ...this.pickupOrders]; }
+        this.load();
+        const toast = await this.toastCtrl.create({ message: 'Payment accepted!', duration: 2500, color: 'success' });
+        await toast.present();
+        const receiptModal = await this.modalCtrl.create({
+          component: ReceiptModalComponent,
+          componentProps: { tx: paidTx },
+        });
+        await receiptModal.present();
+      },
+      error: async () => {
+        const toast = await this.toastCtrl.create({ message: 'Failed to accept payment.', duration: 3000, color: 'danger' });
+        await toast.present();
+      },
+    });
+  }
+
+  async deletePendingOrder(tx: Transaction): Promise<void> {
+    if (this.longPressActive) { this.longPressActive = false; return; }
+    const pinAlert = await this.alertCtrl.create({
+      header: 'Enter PIN',
+      inputs: [{ name: 'pin', type: 'password', placeholder: 'PIN' }],
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'OK',
+          handler: async (data) => {
+            const pin = data.pin?.toString() ?? '';
+            this.api.getSetting('register_pin', '1234').subscribe(async stored => {
+              if (pin !== stored) {
+                const errAlert = await this.alertCtrl.create({
+                  header: 'Incorrect PIN',
+                  message: 'The PIN you entered is wrong.',
+                  buttons: ['OK'],
+                });
+                await errAlert.present();
+                return;
+              }
+              const confirmAlert = await this.alertCtrl.create({
+                header: 'Delete Order',
+                message: `Delete order #${tx.id}?`,
+                buttons: [
+                  { text: 'Cancel', role: 'cancel' },
+                  {
+                    text: 'Delete', role: 'destructive',
+                    handler: () => {
+                      this.api.deleteTransaction(tx.id).subscribe(async () => {
+                        this.pendingOrders = this.pendingOrders.filter(t => t.id !== tx.id);
+                        const toast = await this.toastCtrl.create({ message: 'Order deleted', duration: 2000 });
+                        await toast.present();
+                      });
+                    },
+                  },
+                ],
+              });
+              await confirmAlert.present();
+            });
+          },
+        },
+      ],
+    });
+    await pinAlert.present();
+  }
+
+  async notifyPickup(tx: Transaction): Promise<void> {
+    if (this.longPressActive) { this.longPressActive = false; return; }
+    const defaultSms = `Hi {{customer_name}}! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!`;
+    const template = await firstValueFrom(this.api.getSetting('sms_message', defaultSms));
+    const message = template
+      .replace(/{\{\s*order_id\s*\}\}/gi, String(tx.id))
+      .replace(/{\{\s*customer_name\s*\}\}/gi, tx.customer_name ?? '');
+    window.open(`sms:${tx.phone_number}?body=${encodeURIComponent(message)}`, '_system');
+    this.api.incrementNotifyCount(tx.id).subscribe(() => {
+      tx.notify_count = (tx.notify_count ?? 0) + 1;
+    });
+  }
+
+  startLongPress(label: string): void {
+    this.longPressActive = false;
+    this._tooltipTimer = setTimeout(async () => {
+      this.longPressActive = true;
+      const toast = await this.toastCtrl.create({ message: label, duration: 1200, position: 'bottom' });
+      await toast.present();
+    }, 600);
+  }
+
+  endLongPress(): void {
+    if (this._tooltipTimer !== null) {
+      clearTimeout(this._tooltipTimer);
+      this._tooltipTimer = null;
+    }
   }
 }

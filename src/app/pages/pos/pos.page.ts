@@ -20,7 +20,7 @@ import {
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
-import { LaundryService, Product, CartItem } from '../../models/models';
+import { LaundryService, Product, CartItem, Transaction } from '../../models/models';
 import { PaymentModalComponent } from './payment-modal/payment-modal.component';
 import { ReceiptModalComponent } from './receipt-modal/receipt-modal.component';
 
@@ -146,8 +146,17 @@ const CATEGORY_ICONS: Record<string, string> = {
               </button>
             </div>
             <div class="cart-header">
-              <span class="cart-title">Order</span>
-              <span class="cart-count">{{ cartCount }} item{{ cartCount !== 1 ? 's' : '' }}</span>
+              @if (editTx) {
+                <div class="edit-banner">
+                  <span class="edit-banner-label">Editing Order #{{ editTx.id }}</span>
+                  <button class="edit-cancel-btn" (click)="cancelEdit()">
+                    <ion-icon name="close-outline"></ion-icon>
+                  </button>
+                </div>
+              } @else {
+                <span class="cart-title">Order</span>
+                <span class="cart-count">{{ cartCount }} item{{ cartCount !== 1 ? 's' : '' }}</span>
+              }
             </div>
             <div class="cart-body">
               @if (cart.length === 0) {
@@ -175,10 +184,22 @@ const CATEGORY_ICONS: Record<string, string> = {
                 <span class="total-label">Total</span>
                 <strong class="total-amount">{{ cartTotal | currency:'PHP':'symbol':'1.2-2' }}</strong>
               </div>
-              <ion-button expand="block" color="primary" [disabled]="cart.length === 0" (click)="charge()">
-                <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
-                Charge {{ cartTotal | currency:'PHP':'symbol':'1.2-2' }}
-              </ion-button>
+              @if (editTx) {
+                <div class="edit-btns">
+                  <ion-button expand="block" fill="outline" color="medium" [disabled]="cart.length === 0" (click)="saveEdits()">
+                    Save Changes
+                  </ion-button>
+                  <ion-button expand="block" color="success" [disabled]="cart.length === 0" (click)="charge()">
+                    <ion-icon name="cash-outline" slot="start"></ion-icon>
+                    Charge
+                  </ion-button>
+                </div>
+              } @else {
+                <ion-button expand="block" color="primary" [disabled]="cart.length === 0" (click)="charge()">
+                  <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
+                  Charge {{ cartTotal | currency:'PHP':'symbol':'1.2-2' }}
+                </ion-button>
+              }
             </div>
           </div>
 
@@ -307,6 +328,10 @@ const CATEGORY_ICONS: Record<string, string> = {
     .total-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .total-label { font-size: 0.9rem; opacity: 0.65; }
     .total-amount { font-size: 1.2rem; color: var(--ion-color-primary); }
+    .edit-banner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .edit-banner-label { font-weight: 700; font-size: 0.85rem; color: var(--ion-color-warning-shade); }
+    .edit-cancel-btn { background: none; border: none; font-size: 1.2rem; color: var(--ion-color-medium); cursor: pointer; padding: 2px 4px; display: flex; align-items: center; }
+    .edit-btns { display: flex; flex-direction: column; gap: 6px; }
 
     /* ===== Tablet and above: restore split layout ===== */
     @media (min-width: 768px) {
@@ -331,6 +356,7 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
   services: LaundryService[] = [];
   products: Product[] = [];
   cart: CartItem[] = [];
+  editTx: Transaction | null = null;
   loading = true;
   activeMode: 'services' | 'products' = 'services';
   activeCategory = '';
@@ -363,7 +389,23 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
 
   ngOnDestroy(): void { this.routerSub?.unsubscribe(); }
 
-  ionViewWillEnter(): void { this.loadCatalog(); }
+  ionViewWillEnter(): void {
+    const state = history.state as { editTx?: Transaction };
+    if (state?.editTx) {
+      this.editTx = state.editTx;
+      this.cart = (state.editTx.items ?? []).map(i => ({
+        service_id: i.service_id,
+        service_name: i.service_name,
+        unit: i.unit,
+        price: i.price,
+        quantity: i.quantity,
+        item_type: i.item_type,
+      }));
+      this.showCart = true;
+      history.replaceState({ ...history.state, editTx: null }, '');
+    }
+    this.loadCatalog();
+  }
 
   refresh(event: CustomEvent): void {
     this.servicesLoaded = false;
@@ -518,11 +560,43 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
     this.showCart = false;
     const modal = await this.modalCtrl.create({
       component: PaymentModalComponent,
-      componentProps: { cart: this.cart },
+      componentProps: {
+        cart: this.cart,
+        allowPayLater: !this.editTx,
+        prefillCustomerName: this.editTx?.customer_name ?? '',
+        prefillPhone: this.editTx?.phone_number ?? '',
+      },
     });
     await modal.present();
     const { data } = await modal.onWillDismiss();
     if (!data?.confirmed) return;
+
+    if (this.editTx) {
+      const editId = this.editTx.id;
+      this.api.updateTransactionItems(editId, this.cart).subscribe({
+        next: () => {
+          this.api.acceptPayment(editId, {
+            payment_method: data.result.payment_method,
+            amount_tendered: data.result.amount_tendered,
+            change_due: data.result.change_due,
+          }).subscribe(async paidTx => {
+            this.editTx = null;
+            this.cart = [];
+            const receiptModal = await this.modalCtrl.create({
+              component: ReceiptModalComponent,
+              componentProps: { tx: paidTx },
+            });
+            await receiptModal.present();
+            this.router.navigate(['/transactions']);
+          });
+        },
+        error: async () => {
+          const toast = await this.toastCtrl.create({ message: 'Failed to update order.', duration: 3000, color: 'danger' });
+          await toast.present();
+        },
+      });
+      return;
+    }
 
     this.api.createTransaction({
       items: this.cart,
@@ -561,5 +635,34 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
         await toast.present();
       },
     });
+  }
+
+  async saveEdits(): Promise<void> {
+    if (!this.editTx) return;
+    const editId = this.editTx.id;
+    this.api.updateTransactionItems(editId, this.cart).subscribe({
+      next: async () => {
+        const toast = await this.toastCtrl.create({
+          message: `Order #${editId} updated.`,
+          duration: 2500,
+          color: 'success',
+        });
+        await toast.present();
+        this.editTx = null;
+        this.cart = [];
+        this.router.navigate(['/transactions']);
+      },
+      error: async () => {
+        const toast = await this.toastCtrl.create({ message: 'Failed to update order.', duration: 3000, color: 'danger' });
+        await toast.present();
+      },
+    });
+  }
+
+  cancelEdit(): void {
+    this.editTx = null;
+    this.cart = [];
+    this.showCart = false;
+    this.router.navigate(['/transactions']);
   }
 }

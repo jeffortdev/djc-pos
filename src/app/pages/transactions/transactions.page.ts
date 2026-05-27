@@ -2,7 +2,6 @@ import { Component, OnInit } from '@angular/core';
 import { ViewWillEnter } from '@ionic/angular';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { firstValueFrom } from 'rxjs';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonIcon, IonSpinner, IonButton, IonChip, IonLabel, IonRefresher, IonRefresherContent,
@@ -10,12 +9,11 @@ import {
   ModalController, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline, hourglassOutline, cashOutline } from 'ionicons/icons';
+import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
-import { Transaction, StockEntry, CartItem } from '../../models/models';
+import { Transaction, StockEntry } from '../../models/models';
 import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.component';
-import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.component';
 
 @Component({
   selector: 'app-transactions',
@@ -98,37 +96,14 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                     </div>
                   </div>
                   <div class="tx-actions">
-                    <ion-button fill="clear" size="small"
+                    <ion-button fill="clear"
                       (click)="onReceiptTap(tx)"
                       (touchstart)="startLongPress('View Receipt')"
                       (touchend)="endLongPress()"
                       (touchmove)="endLongPress()">
                       <ion-icon name="eye-outline" slot="icon-only"></ion-icon>
                     </ion-button>
-                    @if ((tx.status ?? 'paid') === 'pending') {
-                      <ion-button fill="clear" color="success" size="small"
-                        (click)="onAcceptTap(tx)"
-                        (touchstart)="startLongPress('Accept Payment')"
-                        (touchend)="endLongPress()"
-                        (touchmove)="endLongPress()">
-                        <ion-icon name="cash-outline" slot="icon-only"></ion-icon>
-                      </ion-button>
-                    }
-                    @if (tx.phone_number) {
-                      <div class="icon-btn-wrap">
-                        <ion-button fill="clear" color="success" size="small"
-                          (click)="onNotifyTap(tx)"
-                          (touchstart)="startLongPress('Notify Customer')"
-                          (touchend)="endLongPress()"
-                          (touchmove)="endLongPress()">
-                          <ion-icon name="chatbubble-outline" slot="icon-only"></ion-icon>
-                        </ion-button>
-                        @if ((tx.notify_count ?? 0) > 0) {
-                          <span class="notify-badge-overlay">{{ tx.notify_count }}</span>
-                        }
-                      </div>
-                    }
-                    <ion-button fill="clear" color="danger" size="small"
+                    <ion-button fill="clear" color="danger"
                       (click)="onDeleteTap(tx)"
                       (touchstart)="startLongPress('Delete Transaction')"
                       (touchend)="endLongPress()"
@@ -242,9 +217,7 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
     .tx-total { font-weight: 700; font-size: 1rem; color: var(--ion-color-primary); }
     .neg-amount { color: var(--ion-color-danger) !important; }
     .stock-after { font-size: 0.72rem; opacity: 0.6; }
-    .tx-actions { display: flex; gap: 2px; margin-top: 8px; align-items: center; }
-    .icon-btn-wrap { position: relative; display: inline-flex; }
-    .notify-badge-overlay { position: absolute; top: 4px; right: 4px; display: inline-flex; align-items: center; justify-content: center; background: var(--ion-color-success); color: #fff; border-radius: 50%; width: 14px; height: 14px; font-size: 0.6rem; font-weight: 700; pointer-events: none; }
+    .tx-actions { display: flex; gap: 0; margin-top: 4px; align-items: center; }
   `],
 })
 export class TransactionsPage implements OnInit, ViewWillEnter {
@@ -268,7 +241,7 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, chatbubbleOutline, cubeOutline, hourglassOutline, cashOutline });
+    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline });
   }
 
   ngOnInit(): void { }
@@ -360,60 +333,6 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     });
   }
 
-  async acceptPayment(tx: Transaction): Promise<void> {
-    const full = await firstValueFrom(this.api.getTransaction(tx.id));
-    const cartItems: CartItem[] = (full.items ?? []).map(i => ({
-      service_id: i.service_id,
-      service_name: i.service_name,
-      unit: i.unit,
-      price: i.price,
-      quantity: i.quantity,
-      item_type: i.item_type,
-    }));
-
-    const modal = await this.modalCtrl.create({
-      component: PaymentModalComponent,
-      componentProps: {
-        cart: cartItems,
-        allowPayLater: false,
-        prefillCustomerName: full.customer_name ?? '',
-        prefillPhone: full.phone_number ?? '',
-      },
-    });
-    await modal.present();
-    const { data } = await modal.onWillDismiss();
-    if (!data?.confirmed) return;
-
-    this.api.acceptPayment(full.id, {
-      payment_method: data.result.payment_method,
-      amount_tendered: data.result.amount_tendered,
-      change_due: data.result.change_due,
-    }).subscribe({
-      next: async paidTx => {
-        const idx = this.transactions.findIndex(t => t.id === full.id);
-        if (idx >= 0) {
-          this.transactions[idx] = {
-            ...this.transactions[idx],
-            status: 'paid',
-            payment_method: data.result.payment_method,
-          };
-          this.transactions = [...this.transactions];
-        }
-        const toast = await this.toastCtrl.create({ message: 'Payment accepted!', duration: 2500, color: 'success' });
-        await toast.present();
-        const receiptModal = await this.modalCtrl.create({
-          component: ReceiptModalComponent,
-          componentProps: { tx: paidTx },
-        });
-        await receiptModal.present();
-      },
-      error: async () => {
-        const toast = await this.toastCtrl.create({ message: 'Failed to accept payment.', duration: 3000, color: 'danger' });
-        await toast.present();
-      },
-    });
-  }
-
   async deleteTransaction(tx: Transaction): Promise<void> {
     // Step 1: verify PIN
     const pinAlert = await this.alertCtrl.create({
@@ -495,30 +414,8 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     this.viewReceipt(tx);
   }
 
-  onAcceptTap(tx: Transaction): void {
-    if (this.longPressActive) { this.longPressActive = false; return; }
-    this.acceptPayment(tx);
-  }
-
-  onNotifyTap(tx: Transaction): void {
-    if (this.longPressActive) { this.longPressActive = false; return; }
-    this.sendPickupSms(tx);
-  }
-
   onDeleteTap(tx: Transaction): void {
     if (this.longPressActive) { this.longPressActive = false; return; }
     this.deleteTransaction(tx);
-  }
-
-  async sendPickupSms(tx: Transaction): Promise<void> {
-    const defaultSms = `Hi {{customer_name}}! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!`;
-    const template = await firstValueFrom(this.api.getSetting('sms_message', defaultSms));
-    const message = template
-      .replace(/{{\s*order_id\s*}}/gi, String(tx.id))
-      .replace(/{{\s*customer_name\s*}}/gi, tx.customer_name ?? '');
-    window.open(`sms:${tx.phone_number}?body=${encodeURIComponent(message)}`, '_system');
-    this.api.incrementNotifyCount(tx.id).subscribe(() => {
-      tx.notify_count = (tx.notify_count ?? 0) + 1;
-    });
   }
 }
