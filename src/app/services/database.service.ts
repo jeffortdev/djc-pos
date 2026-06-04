@@ -182,21 +182,68 @@ export class DatabaseService {
   private isNative = false;
   private recoveryMessage = new BehaviorSubject<string | null>(null);
   public recovery$ = this.recoveryMessage.asObservable();
+  
+  private initError = new BehaviorSubject<string | null>(null);
+  public initError$ = this.initError.asObservable();
+  
+  private isInitializing = new BehaviorSubject<boolean>(true);
+  public isInitializing$ = this.isInitializing.asObservable();
 
   constructor(private platform: Platform) {
     this.ready = this.init();
   }
 
   private async init(): Promise<void> {
-    await this.platform.ready();
-    this.isNative = this.platform.is('capacitor');
+    try {
+      console.log('Database init: Waiting for platform ready...');
+      await this.platform.ready();
+      console.log('Database init: Platform ready');
+      this.isNative = this.platform.is('capacitor');
+      console.log('Database init: isNative =', this.isNative);
 
-    if (this.isNative) {
-      this.sqliteStore = new SQLiteStore();
-      await this.sqliteStore.ready;
-      await this.trySeedSQLite();
-    } else {
-      this.trySeedLocal();
+      if (this.isNative) {
+        console.log('Database init: Creating SQLiteStore...');
+        this.sqliteStore = new SQLiteStore();
+        
+        // Add 10-second timeout for SQLite initialization
+        const sqliteInitPromise = this.sqliteStore.ready;
+        const timeoutPromise = new Promise<void>((_, reject) => 
+          setTimeout(() => reject(new Error('SQLite initialization timeout (10s)')), 10000)
+        );
+        
+        try {
+          await Promise.race([sqliteInitPromise, timeoutPromise]);
+          console.log('Database init: SQLite ready');
+        } catch (sqliteError) {
+          console.error('Database init: SQLite failed, falling back to localStorage', sqliteError);
+          // SQLite failed - continue without it (app will work but lose persistence)
+          this.sqliteStore = undefined;
+        }
+        
+        if (this.sqliteStore) {
+          await this.trySeedSQLite();
+        } else {
+          this.trySeedLocal();
+        }
+      } else {
+        console.log('Database init: Not native, using localStorage');
+        try {
+          this.trySeedLocal();
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error('Local storage initialization failed:', errorMsg);
+          throw new Error(`Local storage initialization failed: ${errorMsg}`);
+        }
+      }
+      
+      console.log('Database init: Complete');
+      this.isInitializing.next(false);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('Database initialization failed:', errorMsg);
+      this.initError.next(errorMsg);
+      this.isInitializing.next(false);
+      throw error;
     }
   }
 

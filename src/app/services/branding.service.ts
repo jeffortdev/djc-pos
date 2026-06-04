@@ -25,7 +25,11 @@ export class BrandingService {
       firstValueFrom(this.db.getSetting('app_color_theme', 'system')),
     ]);
     if (title) this.appTitle$.next(title);
-    this.logoSrc$.next(logo || 'assets/logo.svg');
+    const finalLogo = logo || localStorage.getItem('app_logo_cache') || 'assets/logo.svg';
+    this.logoSrc$.next(finalLogo);
+    if (logo) {
+      localStorage.setItem('app_logo_cache', logo);
+    }
     this.watermarkSrc$.next(watermark);
     this.watermarkOpacity$.next(parseFloat(opacity) || 0.15);
     this.applyTheme(theme as ColorTheme);
@@ -52,6 +56,12 @@ export class BrandingService {
 
   async saveLogo(dataUrl: string): Promise<void> {
     await firstValueFrom(this.db.setSetting('app_logo', dataUrl));
+    // Also save to localStorage for immediate availability on loading screen
+    if (dataUrl) {
+      localStorage.setItem('app_logo_cache', dataUrl);
+    } else {
+      localStorage.removeItem('app_logo_cache');
+    }
     this.logoSrc$.next(dataUrl || 'assets/logo.svg');
   }
 
