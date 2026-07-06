@@ -5,11 +5,11 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonIcon, IonSpinner, IonButton, IonChip, IonLabel, IonRefresher, IonRefresherContent,
-  IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton,
+  IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton, IonSearchbar,
   ModalController, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline, checkmarkDoneOutline } from 'ionicons/icons';
+import { receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline, checkmarkDoneOutline, searchOutline, closeOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { Transaction, StockEntry } from '../../models/models';
@@ -22,7 +22,7 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     CommonModule, CurrencyPipe, DatePipe, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
     IonIcon, IonSpinner, IonButton, IonChip, IonLabel, IonRefresher, IonRefresherContent,
-    IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton,
+    IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton, IonSearchbar,
   ],
   providers: [ModalController, AlertController, ToastController],
   template: `
@@ -43,6 +43,15 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
       <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
+
+      <ion-searchbar
+        [(ngModel)]="searchQuery"
+        (ionInput)="onSearch($event)"
+        (ionClear)="clearSearch()"
+        placeholder="Search by name, phone, notes, ID…"
+        debounce="300"
+        class="history-search"
+      ></ion-searchbar>
 
       <ion-segment [(ngModel)]="activeTab" class="history-segment">
         <ion-segment-button value="sales">
@@ -120,7 +129,7 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
               </ion-card>
             }
           </div>
-          @if (hasMore) {
+          @if (hasMore && !searchQuery) {
             <ion-infinite-scroll (ionInfinite)="loadMore($event)">
               <ion-infinite-scroll-content loadingText="Loading more..."></ion-infinite-scroll-content>
             </ion-infinite-scroll>
@@ -209,7 +218,8 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     .loading-center { display: flex; justify-content: center; align-items: center; height: 60vh; }
     .empty-state { display: flex; flex-direction: column; align-items: center; padding: 48px; opacity: 0.4; }
     .empty-state ion-icon { font-size: 3rem; }
-    .history-segment { margin: 8px; }
+    .history-search { padding: 4px 8px 0; }
+    .history-segment { margin: 4px 8px 8px; }
     .tx-list { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
     .tx-card ion-card-content { padding: 12px; }
     .tx-row { display: flex; gap: 8px; justify-content: space-between; align-items: flex-start; }
@@ -238,6 +248,7 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
   hasMore = false;
   stockOffset = 0;
   stockHasMore = false;
+  searchQuery = '';
 
   constructor(
     private api: DatabaseService,
@@ -246,7 +257,7 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline, checkmarkDoneOutline });
+    addIcons({ receiptOutline, trashOutline, eyeOutline, arrowUpOutline, arrowDownOutline, walletOutline, cubeOutline, hourglassOutline, checkmarkDoneOutline, searchOutline, closeOutline });
   }
 
   ngOnInit(): void { }
@@ -388,6 +399,34 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
 
   paymentColor(method: string): string {
     return method === 'cash' ? 'success' : method === 'card' ? 'primary' : 'warning';
+  }
+
+  onSearch(event: CustomEvent): void {
+    const q = (event.detail.value ?? '').trim();
+    this.searchQuery = q;
+    if (!q) {
+      this.clearSearch();
+      return;
+    }
+    this.loading = true;
+    this.api.searchTransactions(q).subscribe(txs => {
+      this.transactions = txs;
+      this.hasMore = false;
+      this.loading = false;
+    });
+  }
+
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.transactions = [];
+    this.offset = 0;
+    this.hasMore = false;
+    this.loading = true;
+    this.api.getTransactions(this.limit + 1, 0).subscribe(txs => {
+      this.hasMore = txs.length > this.limit;
+      this.transactions = txs.slice(0, this.limit);
+      this.loading = false;
+    });
   }
 
   private _tooltipTimer: ReturnType<typeof setTimeout> | null = null;

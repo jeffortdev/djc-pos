@@ -5,10 +5,10 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonIcon, IonSpinner, IonButton, IonButtons, IonItem, IonLabel, IonInput,
   IonSelect, IonSelectOption, IonToggle, IonRefresher,
-  IonRefresherContent, AlertController, ToastController, ModalController
+  IonRefresherContent, IonSearchbar, AlertController, ToastController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart } from 'ionicons/icons';
+import { addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart, swapVerticalOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { LaundryService } from '../../models/models';
@@ -24,7 +24,7 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
     IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
     IonIcon, IonSpinner, IonButton, IonButtons, IonItem, IonLabel, IonInput,
     IonSelect, IonSelectOption, IonToggle, IonRefresher,
-    IonRefresherContent,
+    IonRefresherContent, IonSearchbar,
   ],
   providers: [AlertController, ToastController, ModalController],
   template: `
@@ -39,6 +39,9 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
           </div>
         </ion-title>
         <ion-buttons slot="end">
+          <ion-button (click)="sortAsc = !sortAsc" aria-label="Toggle sort order">
+            <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
+          </ion-button>
           <ion-button (click)="startAdd()">
             <ion-icon name="add-outline" slot="icon-only"></ion-icon>
           </ion-button>
@@ -50,6 +53,13 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
       <ion-refresher slot="fixed" (ionRefresh)="refreshList($event)">
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
+
+      <ion-searchbar
+        [(ngModel)]="filterTerm"
+        placeholder="Filter services…"
+        debounce="200"
+        class="admin-search"
+      ></ion-searchbar>
 
       @if (loading) {
         <div class="loading-center">
@@ -100,7 +110,7 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
                 <ion-icon name="close-outline" slot="start"></ion-icon>
                 Cancel
               </ion-button>
-              <ion-button [disabled]="!form.name || !form.price" (click)="save()">
+              <ion-button [disabled]="!form.name || form.price === undefined || form.price === null" (click)="save()">
                 <ion-icon name="checkmark-outline" slot="start"></ion-icon>
                 Save
               </ion-button>
@@ -111,7 +121,7 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
 
       <!-- Service list -->
       <div class="service-list">
-        @for (svc of services; track svc.id) {
+        @for (svc of filteredServices; track svc.id) {
           <ion-card class="svc-card">
             <ion-card-content>
               <div class="svc-row">
@@ -150,6 +160,7 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
   `,
   styles: [`
     .loading-center { display: flex; justify-content: center; align-items: center; height: 60vh; }
+    .admin-search { padding: 4px 8px 0; }
     .edit-card { margin: 8px; }
     .form-heading { font-size: 1rem; font-weight: 600; margin: 0 0 8px; }
     .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
@@ -175,6 +186,15 @@ export class ServicesAdminPage implements OnInit {
   units = UNITS;
   form: Partial<LaundryService> = {};
   private editId = 0;
+  filterTerm = '';
+  sortAsc = true;
+
+  get filteredServices(): LaundryService[] {
+    const term = this.filterTerm.toLowerCase().trim();
+    let list = term ? this.services.filter(s => s.name.toLowerCase().includes(term)) : [...this.services];
+    list.sort((a, b) => this.sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+    return list;
+  }
 
   constructor(
     private api: DatabaseService,
@@ -182,7 +202,7 @@ export class ServicesAdminPage implements OnInit {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart });
+    addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart, swapVerticalOutline });
   }
 
   ngOnInit(): void { this.loadServices(); }
@@ -214,17 +234,35 @@ export class ServicesAdminPage implements OnInit {
   cancelEdit(): void { this.editing = false; }
 
   save(): void {
-    const onSaved = async () => {
-      this.editing = false;
-      this.loadServices();
-      const msg = this.isNew ? 'Service added' : 'Service updated';
-      const toast = await this.toastCtrl.create({ message: msg, duration: 2000 });
-      await toast.present();
-    };
     if (this.isNew) {
-      this.api.createService(this.form).subscribe({ next: () => onSaved() });
+      this.api.createService(this.form).subscribe({
+        next: async (res) => {
+          const newItem: LaundryService = {
+            id: res.id,
+            name: this.form.name!,
+            price: this.form.price ?? 0,
+            category: this.form.category ?? 'standard',
+            unit: this.form.unit ?? 'per item',
+            active: 1,
+            sort_order: this.form.sort_order ?? 0,
+            loyalty_tracking: this.form.loyalty_tracking ?? 1,
+          };
+          this.services.push(newItem);
+          this.editing = false;
+          const toast = await this.toastCtrl.create({ message: 'Service added', duration: 2000 });
+          await toast.present();
+        }
+      });
     } else {
-      this.api.updateService(this.editId, this.form).subscribe({ next: () => onSaved() });
+      this.api.updateService(this.editId, this.form).subscribe({
+        next: async () => {
+          const idx = this.services.findIndex(s => s.id === this.editId);
+          if (idx !== -1) Object.assign(this.services[idx], this.form);
+          this.editing = false;
+          const toast = await this.toastCtrl.create({ message: 'Service updated', duration: 2000 });
+          await toast.present();
+        }
+      });
     }
   }
 

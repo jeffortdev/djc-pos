@@ -11,7 +11,7 @@ import {
 } from '@ionic/angular/standalone';
 import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
-import { lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline } from 'ionicons/icons';
+import { lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline, peopleOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService, ColorTheme } from '../../services/branding.service';
 
@@ -176,6 +176,15 @@ import { BrandingService, ColorTheme } from '../../services/branding.service';
         <ion-item button (click)="goProducts()" detail>
           <ion-icon name="add-circle-outline" slot="start" color="primary"></ion-icon>
           <ion-label>Manage Products</ion-label>
+        </ion-item>
+      </ion-list>
+
+      <!-- Customers admin link -->
+      <div class="section-header">Customers</div>
+      <ion-list inset>
+        <ion-item button (click)="goCustomers()" detail>
+          <ion-icon name="people-outline" slot="start" color="primary"></ion-icon>
+          <ion-label>Manage Customers</ion-label>
         </ion-item>
       </ion-list>
 
@@ -381,7 +390,7 @@ export class SettingsPage {
     private alertCtrl: AlertController,
     public branding: BrandingService,
   ) {
-    addIcons({ lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline });
+    addIcons({ lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline, peopleOutline });
     this.screenSizeHint = this.buildScreenHint();
   }
 
@@ -469,6 +478,12 @@ export class SettingsPage {
   async goProducts(): Promise<void> {
     if (await this.requestPin()) {
       this.router.navigate(['/products']);
+    }
+  }
+
+  async goCustomers(): Promise<void> {
+    if (await this.requestPin()) {
+      this.router.navigate(['/customers']);
     }
   }
 

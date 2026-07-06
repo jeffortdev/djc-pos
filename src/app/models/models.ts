@@ -108,6 +108,14 @@ export interface RepeatCustomer {
   last_visit: string;
 }
 
+export interface CustomerSummary {
+  customer_name: string;
+  phone_number: string;
+  visit_count: number;
+  total_spent: number;
+  last_visit: string;
+}
+
 export interface LoyaltyEntry {
   phone_number: string;
   customer_name: string;

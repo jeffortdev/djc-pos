@@ -593,6 +593,34 @@ export class DatabaseService {
     }));
   }
 
+  searchTransactions(query: string): Observable<Transaction[]> {
+    return from(this.ready.then(async () => {
+      const q = query.toLowerCase().trim();
+      if (!q) return [];
+      if (!this.isNative) {
+        return [...this.local.getTransactions()]
+          .filter(t =>
+            t.id.toString().includes(q) ||
+            (t.customer_name ?? '').toLowerCase().includes(q) ||
+            (t.phone_number ?? '').toLowerCase().includes(q) ||
+            (t.notes ?? '').toLowerCase().includes(q)
+          )
+          .sort((a, b) => b.created_at.localeCompare(a.created_at));
+      }
+      const like = `%${q}%`;
+      const r = await this.sqliteStore!.query(
+        `SELECT * FROM transactions
+         WHERE LOWER(COALESCE(customer_name,'')) LIKE ?
+            OR LOWER(COALESCE(phone_number,'')) LIKE ?
+            OR LOWER(COALESCE(notes,'')) LIKE ?
+            OR CAST(id AS TEXT) LIKE ?
+         ORDER BY created_at DESC`,
+        [like, like, like, like]
+      );
+      return (r.values ?? []) as Transaction[];
+    }));
+  }
+
   getTransaction(id: number): Observable<Transaction> {
     return from(this.ready.then(async () => {
       if (!this.isNative) {
@@ -788,6 +816,91 @@ export class DatabaseService {
         // Column not yet present on a very old schema — return empty gracefully
         return [];
       }
+    }));
+  }
+
+  getAllCustomers(): Observable<import('../models/models').CustomerSummary[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const map = new Map<string, import('../models/models').CustomerSummary>();
+        for (const tx of this.local.getTransactions()) {
+          const phone = tx.phone_number ?? '';
+          if (!phone) continue;
+          const name = tx.customer_name ?? '';
+          const existing = map.get(phone);
+          if (existing) {
+            existing.visit_count++;
+            existing.total_spent += tx.total ?? 0;
+            if (tx.created_at > existing.last_visit) {
+              existing.last_visit = tx.created_at;
+              if (name) existing.customer_name = name;
+            }
+          } else {
+            map.set(phone, {
+              phone_number: phone,
+              customer_name: name,
+              visit_count: 1,
+              total_spent: tx.total ?? 0,
+              last_visit: tx.created_at,
+            });
+          }
+        }
+        return [...map.values()].sort((a, b) => (a.customer_name || a.phone_number).localeCompare(b.customer_name || b.phone_number));
+      }
+      const r = await this.sqliteStore!.query(
+        `SELECT phone_number,
+                COALESCE(NULLIF(MAX(CASE WHEN customer_name != '' THEN customer_name END), ''), phone_number) AS customer_name,
+                COUNT(*) AS visit_count,
+                SUM(total) AS total_spent,
+                MAX(created_at) AS last_visit
+         FROM transactions
+         WHERE phone_number IS NOT NULL AND phone_number != ''
+         GROUP BY phone_number
+         ORDER BY customer_name`
+      );
+      return ((r.values ?? []) as any[]).map(row => ({
+        phone_number: row.phone_number as string,
+        customer_name: row.customer_name as string,
+        visit_count: Number(row.visit_count),
+        total_spent: Number(row.total_spent),
+        last_visit: row.last_visit as string,
+      }));
+    }));
+  }
+
+  anonymizeCustomer(phone: string): Observable<{ ok: boolean }> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const list = this.local.getTransactions().map(t =>
+          t.phone_number === phone ? { ...t, phone_number: undefined, customer_name: undefined } : t
+        );
+        this.local.saveTransactions(list);
+        return { ok: true };
+      }
+      await this.sqliteStore!.run(
+        `UPDATE transactions SET phone_number=NULL, customer_name=NULL WHERE phone_number=?`,
+        [phone]
+      );
+      return { ok: true };
+    }));
+  }
+
+  mergeCustomers(sourcePhone: string, targetPhone: string, targetName: string): Observable<{ ok: boolean }> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const list = this.local.getTransactions().map(t =>
+          t.phone_number === sourcePhone
+            ? { ...t, phone_number: targetPhone, customer_name: targetName || t.customer_name }
+            : t
+        );
+        this.local.saveTransactions(list);
+        return { ok: true };
+      }
+      await this.sqliteStore!.run(
+        `UPDATE transactions SET phone_number=?, customer_name=? WHERE phone_number=?`,
+        [targetPhone, targetName, sourcePhone]
+      );
+      return { ok: true };
     }));
   }
 
