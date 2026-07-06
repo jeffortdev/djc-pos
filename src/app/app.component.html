@@ -1,5 +1,16 @@
 <ion-app>
-  <ion-router-outlet></ion-router-outlet>
+  <!-- Loading screen during database initialization -->
+  <div *ngIf="isInitializing" class="init-loading">
+    <img [src]="logoSrc" alt="logo" class="init-logo">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p class="init-text">Initializing database...</p>
+  </div>
+
+  <!-- Main app content (hidden while initializing) -->
+  <div *ngIf="!isInitializing">
+    <ion-router-outlet></ion-router-outlet>
+  </div>
+
   <div class="watermark-overlay" *ngIf="watermarkSrc">
     <img [src]="watermarkSrc" class="watermark-img" [style.opacity]="watermarkOpacity">
   </div>
