@@ -34,6 +34,10 @@ const routes: Routes = [
         path: 'reports',
         loadComponent: () => import('./pages/reports/reports.page').then(m => m.ReportsPage),
       },
+      {
+        path: 'customers',
+        loadComponent: () => import('./pages/customers-admin/customers-admin.page').then(m => m.CustomersAdminPage),
+      },
       { path: '', redirectTo: 'pos', pathMatch: 'full' },
     ],
   },

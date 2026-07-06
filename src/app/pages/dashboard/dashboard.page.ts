@@ -99,7 +99,7 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                   <div class="action-row">
                     <div class="action-info">
                       <span class="action-id">#{{ tx.id }}</span>
-                      @if (tx.customer_name) { <span class="action-customer">{{ tx.customer_name }}</span> }
+                      @if (tx.customer_name || tx.notes) { <span class="action-customer">{{ tx.customer_name || tx.notes }}</span> }
                       <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
                     </div>
                     <div class="action-btns">
@@ -154,7 +154,7 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                   <div class="action-row">
                     <div class="action-info">
                       <span class="action-id">#{{ tx.id }}</span>
-                      @if (tx.customer_name) { <span class="action-customer">{{ tx.customer_name }}</span> }
+                      @if (tx.customer_name || tx.notes) { <span class="action-customer">{{ tx.customer_name || tx.notes }}</span> }
                       <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
                     </div>
                     <div class="action-btns">

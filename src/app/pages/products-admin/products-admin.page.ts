@@ -5,13 +5,13 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonIcon, IonSpinner, IonButton, IonButtons, IonItem, IonLabel, IonInput,
   IonSelect, IonSelectOption, IonToggle, IonRefresher, IonRefresherContent,
-  IonBadge,
+  IonBadge, IonSearchbar,
   AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline,
-  addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline
+  addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline, swapVerticalOutline
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
@@ -28,7 +28,7 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
     IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
     IonIcon, IonSpinner, IonButton, IonButtons, IonItem, IonLabel, IonInput,
     IonSelect, IonSelectOption, IonToggle, IonRefresher, IonRefresherContent,
-    IonBadge,
+    IonBadge, IonSearchbar,
   ],
   providers: [AlertController, ToastController],
   template: `
@@ -43,6 +43,9 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
           </div>
         </ion-title>
         <ion-buttons slot="end">
+          <ion-button (click)="sortAsc = !sortAsc" aria-label="Toggle sort order">
+            <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
+          </ion-button>
           <ion-button (click)="startAdd()">
             <ion-icon name="add-outline" slot="icon-only"></ion-icon>
           </ion-button>
@@ -54,6 +57,13 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
       <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
+
+      <ion-searchbar
+        [(ngModel)]="filterTerm"
+        placeholder="Filter products…"
+        debounce="200"
+        class="admin-search"
+      ></ion-searchbar>
 
       @if (loading) {
         <div class="loading-center">
@@ -111,7 +121,7 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
       }
 
       <div class="product-list">
-        @for (product of products; track product.id) {
+        @for (product of filteredProducts; track product.id) {
           <ion-card class="prod-card">
             <ion-card-content>
 
@@ -224,6 +234,7 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
   `,
   styles: [`
     .loading-center { display: flex; justify-content: center; align-items: center; height: 60vh; }
+    .admin-search { padding: 4px 8px 0; }
     .edit-card { margin: 8px; }
     .form-heading { font-size: 1rem; font-weight: 600; margin: 0 0 8px; }
     .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
@@ -278,6 +289,15 @@ export class ProductsAdminPage implements OnInit {
   stockReasons = STOCK_REASONS;
   form: Partial<Product> = {};
   private editId = 0;
+  filterTerm = '';
+  sortAsc = true;
+
+  get filteredProducts(): Product[] {
+    const term = this.filterTerm.toLowerCase().trim();
+    let list = term ? this.products.filter(p => p.name.toLowerCase().includes(term)) : [...this.products];
+    list.sort((a, b) => this.sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+    return list;
+  }
 
   adjustingId: number | null = null;
   adjustMode: 'add' | 'deduct' = 'add';
@@ -296,7 +316,7 @@ export class ProductsAdminPage implements OnInit {
     public branding: BrandingService,
   ) {
     addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline,
-               addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline });
+               addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline, swapVerticalOutline });
   }
 
   ngOnInit(): void { this.loadProducts(); }
@@ -339,16 +359,35 @@ export class ProductsAdminPage implements OnInit {
   cancelEdit(): void { this.editing = false; }
 
   save(): void {
-    const saveAndFinish = async () => {
-      this.editing = false;
-      this.loadProducts();
-      const toast = await this.toastCtrl.create({ message: this.isNew ? 'Product added' : 'Product updated', duration: 2000 });
-      await toast.present();
-    };
     if (this.isNew) {
-      this.api.createProduct(this.form).subscribe({ next: saveAndFinish });
+      this.api.createProduct(this.form).subscribe({
+        next: async (res) => {
+          const newItem: Product = {
+            id: res.id,
+            name: this.form.name!,
+            type: this.form.type ?? 'Other',
+            cost: this.form.cost ?? 0,
+            price: this.form.price ?? 0,
+            stock: this.form.stock ?? 0,
+            active: this.form.active ? 1 : 0,
+            sort_order: this.form.sort_order ?? 0,
+          };
+          this.products.push(newItem);
+          this.editing = false;
+          const toast = await this.toastCtrl.create({ message: 'Product added', duration: 2000 });
+          await toast.present();
+        }
+      });
     } else {
-      this.api.updateProduct(this.editId, this.form).subscribe({ next: saveAndFinish });
+      this.api.updateProduct(this.editId, this.form).subscribe({
+        next: async () => {
+          const idx = this.products.findIndex(p => p.id === this.editId);
+          if (idx !== -1) Object.assign(this.products[idx], this.form);
+          this.editing = false;
+          const toast = await this.toastCtrl.create({ message: 'Product updated', duration: 2000 });
+          await toast.present();
+        }
+      });
     }
   }
 
