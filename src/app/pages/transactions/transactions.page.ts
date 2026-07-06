@@ -5,12 +5,8 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonIcon, IonSpinner, IonButton, IonChip, IonLabel, IonRefresher, IonRefresherContent,
-<<<<<<< HEAD
-  IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton,
-  IonItem, IonInput, IonSelect, IonSelectOption,
-=======
   IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton, IonSearchbar,
->>>>>>> f901a916823b2ef4e31b2f046ea82c5405978ed7
+  IonItem, IonInput, IonSelect, IonSelectOption,
   ModalController, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -27,12 +23,8 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     CommonModule, CurrencyPipe, DatePipe, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
     IonIcon, IonSpinner, IonButton, IonChip, IonLabel, IonRefresher, IonRefresherContent,
-<<<<<<< HEAD
-    IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton,
-    IonItem, IonInput, IonSelect, IonSelectOption,
-=======
     IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton, IonSearchbar,
->>>>>>> f901a916823b2ef4e31b2f046ea82c5405978ed7
+    IonItem, IonInput, IonSelect, IonSelectOption,
   ],
   providers: [ModalController, AlertController, ToastController],
   template: `
@@ -286,16 +278,12 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     .loading-center { display: flex; justify-content: center; align-items: center; height: 60vh; }
     .empty-state { display: flex; flex-direction: column; align-items: center; padding: 48px; opacity: 0.4; }
     .empty-state ion-icon { font-size: 3rem; }
-<<<<<<< HEAD
-    .history-segment { margin: 8px; }
+    .history-search { padding: 4px 8px 0; }
+    .history-segment { margin: 4px 8px 8px; }
     .filter-section { padding: 8px; background-color: var(--ion-background-color); }
     .filter-item { --padding-start: 0; --padding-end: 0; margin-bottom: 8px; }
     .filter-row { display: flex; gap: 8px; }
     .flex-1 { flex: 1; }
-=======
-    .history-search { padding: 4px 8px 0; }
-    .history-segment { margin: 4px 8px 8px; }
->>>>>>> f901a916823b2ef4e31b2f046ea82c5405978ed7
     .tx-list { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
     .tx-card ion-card-content { padding: 12px; }
     .tx-row { display: flex; gap: 8px; justify-content: space-between; align-items: flex-start; }
@@ -324,8 +312,6 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
   hasMore = false;
   stockOffset = 0;
   stockHasMore = false;
-  searchQuery = '';
-
   // Filters
   searchQuery = '';
   statusFilter = '';
