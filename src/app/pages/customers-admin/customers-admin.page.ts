@@ -10,7 +10,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   peopleOutline, trashOutline, gitMergeOutline, warningOutline,
-  personOutline, callOutline, refreshOutline, createOutline,
+  personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline,
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
@@ -82,6 +82,10 @@ interface DuplicateGroup {
                 </div>
               }
               <div class="dup-actions">
+                <ion-button fill="clear" size="small" color="medium" (click)="dismissGroup(group)">
+                  <ion-icon name="close-circle-outline" slot="start"></ion-icon>
+                  Not the Same Person
+                </ion-button>
                 <ion-button fill="outline" size="small" color="warning" (click)="consolidate(group)">
                   <ion-icon name="git-merge-outline" slot="start"></ion-icon>
                   Consolidate
@@ -190,13 +194,14 @@ interface DuplicateGroup {
     .dup-row .cust-name { font-size: 0.85rem; font-weight: 600; }
     .dup-row .cust-phone { font-size: 0.76rem; opacity: 0.6; }
     .cust-visits { font-size: 0.76rem; opacity: 0.6; white-space: nowrap; }
-    .dup-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
+    .dup-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
   `],
 })
 export class CustomersAdminPage implements OnInit {
   customers: CustomerSummary[] = [];
   loading = true;
   filterTerm = '';
+  dismissedGroups = new Set<string>();
 
   get filteredCustomers(): CustomerSummary[] {
     const term = this.filterTerm.toLowerCase().trim();
@@ -224,12 +229,12 @@ export class CustomersAdminPage implements OnInit {
       }
     }
 
-    // Similar phone (same last 7 digits), different phone_number strings
+    // Similar phone (same last 10 digits), different phone_number strings
     const byTail = new Map<string, CustomerSummary[]>();
     for (const c of this.customers) {
       const digits = c.phone_number.replace(/\D/g, '');
-      if (digits.length < 7) continue;
-      const tail = digits.slice(-7);
+      if (digits.length < 10) continue;
+      const tail = digits.slice(-10);
       if (!byTail.has(tail)) byTail.set(tail, []);
       byTail.get(tail)!.push(c);
     }
@@ -243,7 +248,7 @@ export class CustomersAdminPage implements OnInit {
       }
     }
 
-    return groups;
+    return groups.filter(g => !this.dismissedGroups.has(g.label));
   }
 
   constructor(
@@ -252,13 +257,14 @@ export class CustomersAdminPage implements OnInit {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ peopleOutline, trashOutline, gitMergeOutline, warningOutline, personOutline, callOutline, refreshOutline, createOutline });
+    addIcons({ peopleOutline, trashOutline, gitMergeOutline, warningOutline, personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline });
   }
 
   ngOnInit(): void { this.loadAll(); }
 
   loadAll(): void {
     this.loading = true;
+    this.dismissedGroups.clear();
     this.api.getAllCustomers().subscribe(list => {
       this.customers = list;
       this.loading = false;
@@ -270,6 +276,10 @@ export class CustomersAdminPage implements OnInit {
       this.customers = list;
       (event.target as HTMLIonRefresherElement).complete();
     });
+  }
+
+  dismissGroup(group: DuplicateGroup): void {
+    this.dismissedGroups.add(group.label);
   }
 
   async editCustomer(c: CustomerSummary): Promise<void> {
