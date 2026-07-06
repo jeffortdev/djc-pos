@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { ViewWillEnter } from '@ionic/angular';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -197,7 +198,7 @@ interface DuplicateGroup {
     .dup-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
   `],
 })
-export class CustomersAdminPage implements OnInit {
+export class CustomersAdminPage implements OnInit, ViewWillEnter {
   customers: CustomerSummary[] = [];
   loading = true;
   filterTerm = '';
@@ -240,9 +241,9 @@ export class CustomersAdminPage implements OnInit {
     }
     for (const [tail, list] of byTail.entries()) {
       if (list.length > 1) {
-        // Only add if not already caught by name grouping
-        const already = groups.some(g => g.customers.some(c => list.includes(c)));
-        if (!already) {
+        // Only skip if all members of this list are already covered in the same existing group
+        const fullyConvered = groups.some(g => list.every(c => g.customers.includes(c)));
+        if (!fullyConvered) {
           groups.push({ reason: 'phone', label: `…${tail}`, customers: list });
         }
       }
@@ -260,7 +261,9 @@ export class CustomersAdminPage implements OnInit {
     addIcons({ peopleOutline, trashOutline, gitMergeOutline, warningOutline, personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline });
   }
 
-  ngOnInit(): void { this.loadAll(); }
+  ngOnInit(): void { }
+
+  ionViewWillEnter(): void { this.loadAll(); }
 
   loadAll(): void {
     this.loading = true;
