@@ -73,9 +73,6 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
       <!-- Sales Filters -->
       @if (activeTab === 'sales') {
         <div class="filter-section">
-          <ion-item class="filter-item">
-            <ion-input placeholder="Search customer or phone..." [(ngModel)]="searchQuery" (ionInput)="onFilterChange()"></ion-input>
-          </ion-item>
           <div class="filter-row">
             <ion-item class="filter-item flex-1">
               <ion-label>Status</ion-label>
@@ -321,33 +318,35 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
   stockReasonFilter = '';
 
   get filteredTransactions(): Transaction[] {
+    const q = this.searchQuery.toLowerCase().trim();
     return this.transactions.filter(tx => {
-      const matchesSearch = !this.searchQuery || 
-        (tx.customer_name?.toLowerCase().includes(this.searchQuery.toLowerCase())) ||
-        (tx.phone_number?.includes(this.searchQuery)) ||
-        (tx.notes?.toLowerCase().includes(this.searchQuery.toLowerCase())) ||
-        String(tx.id).includes(this.searchQuery);
-      
+      const matchesSearch = !q ||
+        (tx.customer_name?.toLowerCase().includes(q)) ||
+        (tx.phone_number?.toLowerCase().includes(q)) ||
+        (tx.notes?.toLowerCase().includes(q)) ||
+        String(tx.id).includes(q);
+
       const status = tx.status ?? 'paid';
       const matchesStatus = !this.statusFilter || status === this.statusFilter;
       const matchesPayment = !this.paymentMethodFilter || tx.payment_method === this.paymentMethodFilter;
-      
+
       return matchesSearch && matchesStatus && matchesPayment;
     });
   }
 
   get filteredCashHistory() {
-    return this.registerHistory.filter(entry => {
-      return !this.cashSearchQuery || 
-        (entry.note?.toLowerCase().includes(this.cashSearchQuery.toLowerCase())) ||
-        String(entry.amount).includes(this.cashSearchQuery);
-    });
+    const q = this.cashSearchQuery.toLowerCase().trim();
+    return this.registerHistory.filter(entry =>
+      !q ||
+      (entry.note?.toLowerCase().includes(q)) ||
+      String(entry.amount).includes(q)
+    );
   }
 
   get filteredStockHistory() {
+    const q = this.stockSearchQuery.toLowerCase().trim();
     return this.stockHistory.filter(entry => {
-      const matchesSearch = !this.stockSearchQuery || 
-        (entry.product_name?.toLowerCase().includes(this.stockSearchQuery.toLowerCase()));
+      const matchesSearch = !q || (entry.product_name?.toLowerCase().includes(q));
       const matchesReason = !this.stockReasonFilter || entry.reason === this.stockReasonFilter;
       return matchesSearch && matchesReason;
     });

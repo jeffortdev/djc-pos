@@ -951,6 +951,25 @@ export class DatabaseService {
     }));
   }
 
+  updateCustomer(oldPhone: string, newPhone: string, newName: string): Observable<{ ok: boolean }> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const list = this.local.getTransactions().map(t =>
+          t.phone_number === oldPhone
+            ? { ...t, phone_number: newPhone, customer_name: newName }
+            : t
+        );
+        this.local.saveTransactions(list);
+        return { ok: true };
+      }
+      await this.sqliteStore!.run(
+        `UPDATE transactions SET phone_number=?, customer_name=? WHERE phone_number=?`,
+        [newPhone, newName, oldPhone]
+      );
+      return { ok: true };
+    }));
+  }
+
   createTransaction(payload: {
     items: { service_id: number; service_name: string; unit: string; price: number; quantity: number; item_type: 'service' | 'product' }[];
     payment_method: string;

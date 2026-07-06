@@ -10,7 +10,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   peopleOutline, trashOutline, gitMergeOutline, warningOutline,
-  personOutline, callOutline, refreshOutline,
+  personOutline, callOutline, refreshOutline, createOutline,
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
@@ -134,6 +134,9 @@ interface DuplicateGroup {
                       <span class="cust-stat">Last: {{ c.last_visit | date:'mediumDate' }}</span>
                     </div>
                   </div>
+                  <ion-button fill="clear" (click)="editCustomer(c)">
+                    <ion-icon name="create-outline" slot="icon-only"></ion-icon>
+                  </ion-button>
                   <ion-button fill="clear" color="danger" (click)="deleteCustomer(c)">
                     <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
                   </ion-button>
@@ -249,7 +252,7 @@ export class CustomersAdminPage implements OnInit {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ peopleOutline, trashOutline, gitMergeOutline, warningOutline, personOutline, callOutline, refreshOutline });
+    addIcons({ peopleOutline, trashOutline, gitMergeOutline, warningOutline, personOutline, callOutline, refreshOutline, createOutline });
   }
 
   ngOnInit(): void { this.loadAll(); }
@@ -267,6 +270,41 @@ export class CustomersAdminPage implements OnInit {
       this.customers = list;
       (event.target as HTMLIonRefresherElement).complete();
     });
+  }
+
+  async editCustomer(c: CustomerSummary): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'Edit Customer',
+      inputs: [
+        { name: 'name', type: 'text', placeholder: 'Name', value: c.customer_name },
+        { name: 'phone', type: 'tel', placeholder: 'Phone number', value: c.phone_number },
+      ],
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Save',
+          handler: async (data) => {
+            const newName = (data.name ?? '').trim();
+            const newPhone = (data.phone ?? '').trim();
+            if (!newPhone) {
+              const err = await this.alertCtrl.create({ header: 'Required', message: 'Phone number cannot be empty.', buttons: ['OK'] });
+              await err.present();
+              return false;
+            }
+            this.api.updateCustomer(c.phone_number, newPhone, newName).subscribe(async () => {
+              const idx = this.customers.findIndex(x => x.phone_number === c.phone_number);
+              if (idx !== -1) {
+                this.customers[idx] = { ...this.customers[idx], customer_name: newName, phone_number: newPhone };
+              }
+              const toast = await this.toastCtrl.create({ message: 'Customer updated.', duration: 2000, color: 'success' });
+              await toast.present();
+            });
+            return true;
+          },
+        },
+      ],
+    });
+    await alert.present();
   }
 
   async deleteCustomer(c: CustomerSummary): Promise<void> {

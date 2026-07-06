@@ -98,9 +98,13 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                 @for (tx of pendingOrders; track tx.id) {
                   <div class="action-row">
                     <div class="action-info">
-                      <span class="action-id">#{{ tx.id }}</span>
-                      @if (tx.customer_name || tx.notes) { <span class="action-customer">{{ tx.customer_name || tx.notes }}</span> }
-                      <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+                      <div class="action-top">
+                        <span class="action-id">#{{ tx.id }}</span>
+                        <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+                      </div>
+                      @if (tx.customer_name || tx.notes) {
+                        <span class="action-customer">{{ tx.customer_name || tx.notes }}</span>
+                      }
                     </div>
                     <div class="action-btns">
                       <ion-button fill="clear" color="warning"
@@ -153,9 +157,13 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                 @for (tx of pickupOrders; track tx.id) {
                   <div class="action-row">
                     <div class="action-info">
-                      <span class="action-id">#{{ tx.id }}</span>
-                      @if (tx.customer_name || tx.notes) { <span class="action-customer">{{ tx.customer_name || tx.notes }}</span> }
-                      <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+                      <div class="action-top">
+                        <span class="action-id">#{{ tx.id }}</span>
+                        <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+                      </div>
+                      @if (tx.customer_name || tx.notes) {
+                        <span class="action-customer">{{ tx.customer_name || tx.notes }}</span>
+                      }
                     </div>
                     <div class="action-btns">
                       @if (tx.phone_number) {
@@ -398,10 +406,11 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
     .action-card { margin: 4px 8px; }
     .action-section-label { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; padding: 4px 0 6px; }
     .section-icon { font-size: 1rem; }
-    .action-row { display: flex; align-items: center; gap: 4px; padding: 2px 0; border-bottom: 1px solid var(--ion-border-color); }
-    .action-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; }
+    .action-row { display: flex; align-items: center; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--ion-border-color); }
+    .action-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+    .action-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
     .action-id { font-weight: 700; font-size: 0.88rem; white-space: nowrap; }
-    .action-customer { flex: 1; font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .action-customer { font-size: 0.82rem; font-weight: 600; color: var(--ion-color-medium-shade); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .action-total { font-weight: 700; font-size: 0.88rem; color: var(--ion-color-primary); white-space: nowrap; }
     .action-btns { display: flex; align-items: center; flex-shrink: 0; }
     .icon-btn-wrap { position: relative; display: inline-flex; }
