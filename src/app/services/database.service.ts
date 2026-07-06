@@ -1435,6 +1435,7 @@ export class DatabaseService {
 
     const currTx = allTx.filter(t => inRange(t, currStart, currEnd) && methodMatch(t) && paidOnly(t));
     const prevTx = allTx.filter(t => inRange(t, prevStart, prevEnd) && methodMatch(t) && paidOnly(t));
+    const unpaidTx = allTx.filter(t => inRange(t, currStart, currEnd) && t.status === 'pending');
     const currRev = sumRev(currTx);
     const prevRev = sumRev(prevTx);
 
@@ -1530,6 +1531,7 @@ export class DatabaseService {
       topProducts: Object.values(prodMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5),
       stockLevels,
       paymentBreakdown: Object.values(pmMap).sort((a, b) => b.revenue - a.revenue),
+      unpaid: { count: unpaidTx.length, total: sumRev(unpaidTx) },
     };
   }
 
@@ -1574,6 +1576,7 @@ export class DatabaseService {
     }
 
     // Exclude pending (unpaid) transactions from all metric queries
+    const periodOnlyWhere = pmBaseWhere; // capture before adding paid-only filter
     const sf  = ` AND (status IS NULL OR status IN ('paid','picked_up'))`;
     const sfJ = ` AND (t.status IS NULL OR t.status IN ('paid','picked_up'))`;
     pmBaseWhere += sf;
@@ -1587,7 +1590,7 @@ export class DatabaseService {
         ? `SELECT strftime('%d',created_at) AS day, COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count FROM transactions WHERE ${currWhere} GROUP BY day ORDER BY day`
         : `SELECT date(created_at) AS dt, COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count FROM transactions WHERE ${currWhere} GROUP BY dt ORDER BY dt`;
 
-    const [currR, prevR, bR, topServicesR, topProductsR, stockR, pmR] = await Promise.all([
+    const [currR, prevR, bR, topServicesR, topProductsR, stockR, pmR, unpaidR] = await Promise.all([
       this.sqliteStore!.query(`SELECT COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count, COALESCE(AVG(total),0) AS avg FROM transactions WHERE ${currWhere}`),
       this.sqliteStore!.query(`SELECT COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count, COALESCE(AVG(total),0) AS avg FROM transactions WHERE ${prevWhere}`),
       this.sqliteStore!.query(breakdownSQL),
@@ -1595,6 +1598,7 @@ export class DatabaseService {
       this.sqliteStore!.query(`SELECT ti.service_name AS product_name, SUM(ti.quantity) AS quantity, SUM(ti.subtotal) AS revenue FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id WHERE ${topWhere} AND ti.item_type='product' GROUP BY ti.service_name ORDER BY revenue DESC LIMIT 5`),
       this.sqliteStore!.query(`SELECT p.name AS product_name, p.stock, p.price, p.cost, COALESCE(SUM(ti.quantity),0) AS sold_quantity FROM products p LEFT JOIN transaction_items ti ON ti.service_name = p.name AND ti.item_type='product' LEFT JOIN transactions t ON t.id = ti.transaction_id AND ${topWhere} GROUP BY p.name ORDER BY p.stock ASC, p.name ASC`),
       this.sqliteStore!.query(`SELECT payment_method AS method, COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count FROM transactions WHERE ${pmBaseWhere} GROUP BY payment_method ORDER BY revenue DESC`),
+      this.sqliteStore!.query(`SELECT COUNT(*) AS count, COALESCE(SUM(total),0) AS total FROM transactions WHERE ${periodOnlyWhere} AND status = 'pending'`),
     ]);
 
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -1669,6 +1673,7 @@ export class DatabaseService {
       topProducts: (topProductsR.values ?? []) as any,
       stockLevels,
       paymentBreakdown: (pmR.values ?? []) as any,
+      unpaid: { count: unpaidR.values?.[0]?.count ?? 0, total: unpaidR.values?.[0]?.total ?? 0 },
     };
   }
 

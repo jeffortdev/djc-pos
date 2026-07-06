@@ -11,7 +11,7 @@ import {
 } from '@ionic/angular/standalone';
 import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
-import { lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline, peopleOutline } from 'ionicons/icons';
+import { lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline, peopleOutline, trendingUpOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService, ColorTheme } from '../../services/branding.service';
 import { MessagingService } from '../../services/messaging.service';
@@ -179,6 +179,27 @@ import { MessagingService } from '../../services/messaging.service';
           <ion-label>Manage Products</ion-label>
         </ion-item>
       </ion-list>
+
+      <!-- Sales Target -->
+      <div class="section-header">Sales Target</div>
+      <ion-list inset>
+        <ion-item>
+          <ion-icon name="trending-up-outline" slot="start" color="primary"></ion-icon>
+          <ion-label position="stacked">Monthly Revenue Target (₱)</ion-label>
+          <ion-input
+            type="number"
+            inputmode="decimal"
+            placeholder="e.g. 100000"
+            [(ngModel)]="monthlyTarget"
+          ></ion-input>
+        </ion-item>
+      </ion-list>
+      <div class="btn-wrap">
+        <ion-button expand="block" fill="outline" (click)="saveMonthlyTarget()" [disabled]="targetSaving">
+          <ion-icon name="trending-up-outline" slot="start"></ion-icon>
+          Save Target
+        </ion-button>
+      </div>
 
       <!-- Customers admin link -->
       <div class="section-header">Customers</div>
@@ -377,6 +398,8 @@ import { MessagingService } from '../../services/messaging.service';
 })
 export class SettingsPage {
   currentPin = '';
+  monthlyTarget = 0;
+  targetSaving = false;
   newPin = '';
   confirmPin = '';
   errorMsg = '';
@@ -410,11 +433,12 @@ export class SettingsPage {
     private alertCtrl: AlertController,
     public branding: BrandingService,
   ) {
-    addIcons({ lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline, peopleOutline });
+    addIcons({ lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline, peopleOutline, trendingUpOutline });
     this.screenSizeHint = this.buildScreenHint();
   }
 
   async ngOnInit(): Promise<void> {
+    this.monthlyTarget = parseFloat(await firstValueFrom(this.api.getSetting('monthly_target', '0'))) || 0;
     this.smsMessage = await firstValueFrom(this.api.getSetting(
       'sms_message',
       'Hi {{customer_name}}! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!'
@@ -487,6 +511,14 @@ export class SettingsPage {
     await alert.present();
     await alert.onDidDismiss();
     return granted;
+  }
+
+  async saveMonthlyTarget(): Promise<void> {
+    this.targetSaving = true;
+    await firstValueFrom(this.api.setSetting('monthly_target', (this.monthlyTarget ?? 0).toString()));
+    this.targetSaving = false;
+    const toast = await this.toastCtrl.create({ message: 'Monthly target saved', duration: 1500, color: 'success' });
+    await toast.present();
   }
 
   async goServices(): Promise<void> {

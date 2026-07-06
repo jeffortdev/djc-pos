@@ -140,4 +140,5 @@ export interface ReportStats {
     status: 'ok' | 'warning' | 'must-buy' | 'no-sales';
   }[];
   paymentBreakdown: { method: string; revenue: number; count: number }[];
+  unpaid: { count: number; total: number };
 }

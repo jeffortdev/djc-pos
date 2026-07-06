@@ -97,14 +97,12 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                 </div>
                 @for (tx of pendingOrders; track tx.id) {
                   <div class="action-row">
-                    <div class="action-info">
-                      <div class="action-top">
-                        <span class="action-id">#{{ tx.id }}</span>
-                        <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
-                      </div>
+                    <div class="action-row-top">
+                      <span class="action-id">#{{ tx.id }}</span>
                       @if (tx.customer_name || tx.notes) {
                         <span class="action-customer">{{ tx.customer_name || tx.notes }}</span>
                       }
+                      <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
                     </div>
                     <div class="action-btns">
                       <ion-button fill="clear" color="warning"
@@ -145,6 +143,10 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                     </div>
                   </div>
                 }
+                <div class="action-total-row">
+                  <span class="action-total-label">Total Unpaid</span>
+                  <span class="action-total-sum">{{ pendingTotal | currency:'PHP':'symbol':'1.2-2' }}</span>
+                </div>
               }
               @if (pendingOrders.length > 0 && pickupOrders.length > 0) {
                 <div class="section-divider"></div>
@@ -156,14 +158,12 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
                 </div>
                 @for (tx of pickupOrders; track tx.id) {
                   <div class="action-row">
-                    <div class="action-info">
-                      <div class="action-top">
-                        <span class="action-id">#{{ tx.id }}</span>
-                        <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
-                      </div>
+                    <div class="action-row-top">
+                      <span class="action-id">#{{ tx.id }}</span>
                       @if (tx.customer_name || tx.notes) {
                         <span class="action-customer">{{ tx.customer_name || tx.notes }}</span>
                       }
+                      <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
                     </div>
                     <div class="action-btns">
                       @if (tx.phone_number) {
@@ -194,6 +194,50 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
             }
           </ion-card-content>
         </ion-card>
+
+        <!-- Sales Targets -->
+        @if (monthlyTarget > 0) {
+          <ion-card class="target-card">
+            <ion-card-header>
+              <ion-card-title>Sales Targets</ion-card-title>
+            </ion-card-header>
+            <ion-card-content>
+              <div class="target-row">
+                <span class="target-period">Today</span>
+                <span class="target-fraction" [class.t-success]="pctDay >= 100" [class.t-warning]="pctDay >= 70 && pctDay < 100" [class.t-danger]="pctDay < 70">
+                  {{ (stats?.revenue ?? 0) | currency:'PHP':'symbol':'1.0-0' }} / {{ dayTarget | currency:'PHP':'symbol':'1.0-0' }}
+                </span>
+                <span class="target-pct" [class.t-success]="pctDay >= 100" [class.t-warning]="pctDay >= 70 && pctDay < 100" [class.t-danger]="pctDay < 70">{{ pctDay }}%</span>
+              </div>
+              <div class="target-bar-wrap"><div class="target-bar" [class.t-success]="pctDay >= 100" [class.t-warning]="pctDay >= 70 && pctDay < 100" [class.t-danger]="pctDay < 70" [style.width.%]="pctDay > 100 ? 100 : pctDay"></div></div>
+              <div class="target-need" [class.t-success]="pctDay >= 100" [class.t-danger]="pctDay < 100">
+                @if (pctDay >= 100) { ✓ Target met! } @else { Need {{ dayTarget - (stats?.revenue ?? 0) | currency:'PHP':'symbol':'1.0-0' }} more }
+              </div>
+              <div class="target-row">
+                <span class="target-period">This Week</span>
+                <span class="target-fraction" [class.t-success]="pctWeek >= 100" [class.t-warning]="pctWeek >= 70 && pctWeek < 100" [class.t-danger]="pctWeek < 70">
+                  {{ weekRevenue | currency:'PHP':'symbol':'1.0-0' }} / {{ weekTarget | currency:'PHP':'symbol':'1.0-0' }}
+                </span>
+                <span class="target-pct" [class.t-success]="pctWeek >= 100" [class.t-warning]="pctWeek >= 70 && pctWeek < 100" [class.t-danger]="pctWeek < 70">{{ pctWeek }}%</span>
+              </div>
+              <div class="target-bar-wrap"><div class="target-bar" [class.t-success]="pctWeek >= 100" [class.t-warning]="pctWeek >= 70 && pctWeek < 100" [class.t-danger]="pctWeek < 70" [style.width.%]="pctWeek > 100 ? 100 : pctWeek"></div></div>
+              <div class="target-need" [class.t-success]="pctWeek >= 100" [class.t-danger]="pctWeek < 100">
+                @if (pctWeek >= 100) { ✓ Target met! } @else { Need {{ weekTarget - weekRevenue | currency:'PHP':'symbol':'1.0-0' }} more }
+              </div>
+              <div class="target-row">
+                <span class="target-period">This Month</span>
+                <span class="target-fraction" [class.t-success]="pctMonth >= 100" [class.t-warning]="pctMonth >= 70 && pctMonth < 100" [class.t-danger]="pctMonth < 70">
+                  {{ monthRevenue | currency:'PHP':'symbol':'1.0-0' }} / {{ monthlyTarget | currency:'PHP':'symbol':'1.0-0' }}
+                </span>
+                <span class="target-pct" [class.t-success]="pctMonth >= 100" [class.t-warning]="pctMonth >= 70 && pctMonth < 100" [class.t-danger]="pctMonth < 70">{{ pctMonth }}%</span>
+              </div>
+              <div class="target-bar-wrap"><div class="target-bar" [class.t-success]="pctMonth >= 100" [class.t-warning]="pctMonth >= 70 && pctMonth < 100" [class.t-danger]="pctMonth < 70" [style.width.%]="pctMonth > 100 ? 100 : pctMonth"></div></div>
+              <div class="target-need" [class.t-success]="pctMonth >= 100" [class.t-danger]="pctMonth < 100">
+                @if (pctMonth >= 100) { ✓ Target met! } @else { Need {{ monthlyTarget - monthRevenue | currency:'PHP':'symbol':'1.0-0' }} more }
+              </div>
+            </ion-card-content>
+          </ion-card>
+        }
 
         <!-- KPI cards -->
         <div class="kpi-grid">
@@ -406,16 +450,32 @@ import { PaymentModalComponent } from '../pos/payment-modal/payment-modal.compon
     .action-card { margin: 4px 8px; }
     .action-section-label { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; padding: 4px 0 6px; }
     .section-icon { font-size: 1rem; }
-    .action-row { display: flex; align-items: center; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--ion-border-color); }
-    .action-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
-    .action-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-    .action-id { font-weight: 700; font-size: 0.88rem; white-space: nowrap; }
-    .action-customer { font-size: 0.82rem; font-weight: 600; color: var(--ion-color-medium-shade); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .action-total { font-weight: 700; font-size: 0.88rem; color: var(--ion-color-primary); white-space: nowrap; }
-    .action-btns { display: flex; align-items: center; flex-shrink: 0; }
+    .action-row { display: flex; flex-direction: column; gap: 0; padding: 6px 0; border-bottom: 1px solid var(--ion-border-color); }
+    .action-row-top { display: flex; align-items: baseline; gap: 6px; }
+    .action-id { font-weight: 700; font-size: 0.88rem; white-space: nowrap; flex-shrink: 0; }
+    .action-customer { flex: 1; font-size: 0.78rem; font-weight: 600; color: var(--ion-color-medium-shade); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .action-total { margin-left: auto; flex-shrink: 0; font-weight: 700; font-size: 0.88rem; color: var(--ion-color-primary); white-space: nowrap; }
+    .action-btns { display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: -4px; }
+    .action-total-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 6px 0 2px; border-top: 2px solid var(--ion-color-primary); margin-top: 2px; }
+    .action-total-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; opacity: 0.6; }
+    .action-total-sum { font-size: 1rem; font-weight: 800; color: var(--ion-color-primary); white-space: nowrap; }
     .icon-btn-wrap { position: relative; display: inline-flex; }
     .notify-badge { position: absolute; top: 6px; right: 6px; display: inline-flex; align-items: center; justify-content: center; background: var(--ion-color-success); color: #fff; border-radius: 50%; width: 14px; height: 14px; font-size: 0.6rem; font-weight: 700; pointer-events: none; }
     .section-divider { border-top: 1px solid var(--ion-border-color); margin: 8px 0; }
+    .target-card {}
+    .target-row { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; margin-top: 10px; }
+    .target-period { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; flex-shrink: 0; width: 72px; }
+    .target-fraction { flex: 1; font-size: 0.85rem; font-weight: 600; text-align: right; }
+    .target-pct { flex-shrink: 0; width: 42px; text-align: right; font-size: 0.85rem; font-weight: 800; }
+    .target-bar-wrap { height: 6px; background: var(--ion-color-light-shade); border-radius: 4px; overflow: hidden; margin-bottom: 2px; }
+    .target-bar { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+    .t-success { color: var(--ion-color-success); }
+    .t-warning { color: var(--ion-color-warning-shade); }
+    .t-danger  { color: var(--ion-color-danger); }
+    .target-bar.t-success { background: var(--ion-color-success); }
+    .target-bar.t-warning { background: var(--ion-color-warning); }
+    .target-bar.t-danger  { background: var(--ion-color-danger); }
+    .target-need { font-size: 0.75rem; font-weight: 600; text-align: right; margin-bottom: 10px; opacity: 0.85; }
     @media (max-width: 360px) {
       .kpi-value { font-size: 0.9rem; }
     }
@@ -433,6 +493,9 @@ export class DashboardPage implements OnInit, ViewWillEnter {
   pendingOrders: Transaction[] = [];
   pickupOrders: Transaction[] = [];
   actionLoading = false;
+  monthlyTarget = 0;
+  weekRevenue = 0;
+  monthRevenue = 0;
   private _tooltipTimer: ReturnType<typeof setTimeout> | null = null;
   private longPressActive = false;
 
@@ -440,13 +503,32 @@ export class DashboardPage implements OnInit, ViewWillEnter {
     return this.loyaltyEntries.filter(e => e.visit_count >= this.loyaltyMinVisits);
   }
 
+  get pendingTotal(): number {
+    return this.pendingOrders.reduce((sum, tx) => sum + (tx.total ?? 0), 0);
+  }
+
+  get dayTarget(): number { return this.monthlyTarget > 0 ? this.monthlyTarget / 30 : 0; }
+  get weekTarget(): number { return this.monthlyTarget > 0 ? this.monthlyTarget * 7 / 30 : 0; }
+  get pctDay(): number { return this.dayTarget > 0 ? Math.round((this.stats?.revenue ?? 0) / this.dayTarget * 100) : 0; }
+  get pctWeek(): number { return this.weekTarget > 0 ? Math.round(this.weekRevenue / this.weekTarget * 100) : 0; }
+  get pctMonth(): number { return this.monthlyTarget > 0 ? Math.round(this.monthRevenue / this.monthlyTarget * 100) : 0; }
+  targetColor(pct: number): string { return pct >= 100 ? 'success' : pct >= 70 ? 'warning' : 'danger'; }
+
   constructor(private api: DatabaseService, private alertCtrl: AlertController, private toastCtrl: ToastController, private modalCtrl: ModalController, private router: Router, public branding: BrandingService, private messaging: MessagingService) {
     addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline, hourglassOutline, createOutline, checkmarkDoneOutline, shareOutline, callOutline });
   }
 
-  ngOnInit(): void { this.load(); this.loadSummary(); this.loadLoyalty(); this.loadActionItems(); }
+  ngOnInit(): void { this.load(); this.loadSummary(); this.loadLoyalty(); this.loadActionItems(); this.loadTargetStats(); }
 
-  ionViewWillEnter(): void { this.load(); this.loadSummary(); this.loadLoyalty(); this.loadActionItems(); }
+  ionViewWillEnter(): void { this.load(); this.loadSummary(); this.loadLoyalty(); this.loadActionItems(); this.loadTargetStats(); }
+
+  loadTargetStats(): void {
+    firstValueFrom(this.api.getSetting('monthly_target', '0')).then(v => {
+      this.monthlyTarget = parseFloat(v) || 0;
+    });
+    this.api.getReportStats('week').subscribe(d => { this.weekRevenue = d.current.revenue; });
+    this.api.getReportStats('month').subscribe(d => { this.monthRevenue = d.current.revenue; });
+  }
 
   load(): void {
     this.loading = true;

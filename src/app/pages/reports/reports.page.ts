@@ -10,7 +10,7 @@ import {
 } from '@ionic/angular/standalone';
 import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
-import { trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline } from 'ionicons/icons';
+import { trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline, hourglassOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { ReportStats, RepeatCustomer } from '../../models/models';
@@ -87,6 +87,22 @@ import type { Sheet } from 'write-excel-file/browser';
       @if (loading) {
         <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
       } @else if (data) {
+
+        <!-- Unpaid -->
+        @if (data.unpaid.count > 0) {
+          <ion-card class="unpaid-card">
+            <ion-card-content>
+              <div class="unpaid-row">
+                <ion-icon name="hourglass-outline" color="warning" class="unpaid-icon"></ion-icon>
+                <div class="unpaid-info">
+                  <span class="unpaid-label">Unpaid this period</span>
+                  <span class="unpaid-count">{{ data.unpaid.count }} order{{ data.unpaid.count !== 1 ? 's' : '' }}</span>
+                </div>
+                <span class="unpaid-total">{{ data.unpaid.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+              </div>
+            </ion-card-content>
+          </ion-card>
+        }
 
         <!-- Payment method breakdown (always unfiltered — shows full split) -->
         @if (data.paymentBreakdown.length > 0) {
@@ -362,6 +378,13 @@ import type { Sheet } from 'write-excel-file/browser';
     .stock-status.warning { background: rgba(var(--ion-color-warning-rgb),0.15); color: var(--ion-color-warning); }
     .stock-status:not(.must-buy):not(.warning) { background: rgba(var(--ion-color-medium-rgb),0.12); color: var(--ion-color-medium); }
     .empty { opacity: 0.5; text-align: center; padding: 16px; }
+    .unpaid-card { border-left: 4px solid var(--ion-color-warning); }
+    .unpaid-row { display: flex; align-items: center; gap: 10px; }
+    .unpaid-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .unpaid-info { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+    .unpaid-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }
+    .unpaid-count { font-size: 0.85rem; font-weight: 600; }
+    .unpaid-total { font-size: 1.05rem; font-weight: 800; color: var(--ion-color-warning-shade); white-space: nowrap; flex-shrink: 0; }
 
     /* Repeat customers */
     .card-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -418,7 +441,7 @@ export class ReportsPage implements ViewWillEnter {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline });
+    addIcons({ trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline, hourglassOutline });
   }
 
   ionViewWillEnter(): void { this.load(); }

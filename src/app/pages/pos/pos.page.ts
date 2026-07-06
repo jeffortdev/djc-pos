@@ -8,7 +8,7 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonGrid, IonRow, IonCol,
   IonCard, IonCardContent, IonButton, IonButtons, IonIcon, IonChip, IonLabel, IonSpinner,
-  IonRefresher, IonRefresherContent, IonBadge,
+  IonRefresher, IonRefresherContent, IonBadge, IonSearchbar,
   ModalController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -16,7 +16,7 @@ import {
   shirtOutline, waterOutline, flameOutline, sparklesOutline, starOutline,
   checkmarkCircleOutline, removeOutline, addOutline, trashOutline,
   cardOutline, cashOutline, phonePortraitOutline, checkmarkDoneOutline, receiptOutline,
-  cartOutline, closeOutline
+  cartOutline, closeOutline, swapVerticalOutline
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
@@ -40,7 +40,7 @@ const CATEGORY_ICONS: Record<string, string> = {
     CommonModule, CurrencyPipe, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent, IonGrid, IonRow, IonCol,
     IonCard, IonCardContent, IonButton, IonButtons, IonIcon, IonChip, IonLabel, IonSpinner,
-    IonRefresher, IonRefresherContent, IonBadge,
+    IonRefresher, IonRefresherContent, IonBadge, IonSearchbar,
   ],
   providers: [ModalController, ToastController],
   template: `
@@ -96,6 +96,17 @@ const CATEGORY_ICONS: Record<string, string> = {
               <ion-chip [color]="activeMode === 'products' ? 'primary' : ''" (click)="activeMode = 'products'; activeCategory = ''">
                 <ion-label>Products</ion-label>
               </ion-chip>
+            </div>
+            <div class="filter-row">
+              <ion-searchbar
+                [(ngModel)]="filterTerm"
+                placeholder="Search…"
+                [debounce]="150"
+                class="pos-searchbar"
+              ></ion-searchbar>
+              <ion-button fill="clear" (click)="sortAsc = !sortAsc" aria-label="Toggle sort order" class="sort-btn">
+                <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
+              </ion-button>
             </div>
             <div class="category-row">
               <ion-chip
@@ -218,6 +229,9 @@ const CATEGORY_ICONS: Record<string, string> = {
     .services-pane { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
     .section-toggle { display: flex; gap: 8px; padding: 10px 10px 0; }
     .category-row { flex: 0 0 auto; display: flex; flex-wrap: nowrap; gap: 6px; padding: 8px 10px; overflow-x: auto; }
+    .filter-row { display: flex; align-items: center; gap: 2px; padding: 0 6px; }
+    .pos-searchbar { flex: 1; --border-radius: 8px; padding: 0; }
+    .sort-btn { flex-shrink: 0; }
     .grid-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .service-tile { margin: 4px; }
     .tile-content { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 4px; gap: 2px; }
@@ -360,6 +374,8 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
   loading = true;
   activeMode: 'services' | 'products' = 'services';
   activeCategory = '';
+  filterTerm = '';
+  sortAsc = true;
   showCart = false;
   private routerSub?: Subscription;
   private servicesLoaded = false;
@@ -376,7 +392,7 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
       shirtOutline, waterOutline, flameOutline, sparklesOutline, starOutline,
       checkmarkCircleOutline, removeOutline, addOutline, trashOutline,
       cardOutline, cashOutline, phonePortraitOutline, checkmarkDoneOutline, receiptOutline,
-      cartOutline, closeOutline
+      cartOutline, closeOutline, swapVerticalOutline
     });
   }
 
@@ -467,13 +483,23 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
   }
 
   get filtered(): (LaundryService | Product)[] {
+    const term = this.filterTerm.toLowerCase().trim();
+    const sort = (arr: (LaundryService | Product)[]) =>
+      [...arr].sort((a, b) =>
+        this.sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+      );
+    let list: (LaundryService | Product)[];
     if (this.activeMode === 'services') {
-      if (!this.activeCategory) return this.services;
-      return this.services.filter(svc => svc.category === this.activeCategory);
+      list = this.activeCategory
+        ? this.services.filter(svc => svc.category === this.activeCategory)
+        : this.services;
+    } else {
+      list = this.activeCategory
+        ? this.products.filter(prod => prod.type === this.activeCategory)
+        : this.products;
     }
-
-    if (!this.activeCategory) return this.products;
-    return this.products.filter(prod => prod.type === this.activeCategory);
+    if (term) list = list.filter(i => i.name.toLowerCase().includes(term));
+    return sort(list);
   }
 
   get cartCount(): number {
