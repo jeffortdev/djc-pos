@@ -13,11 +13,14 @@ import {
   cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline,
   checkmarkCircleOutline, cardOutline, phonePortraitOutline,
   walletOutline, addCircleOutline, removeOutline,
-  chatbubbleOutline, trashOutline, hourglassOutline, createOutline, checkmarkDoneOutline
+  chatbubbleOutline, trashOutline, hourglassOutline, createOutline, checkmarkDoneOutline,
+  shareOutline, callOutline
 } from 'ionicons/icons';
 import { firstValueFrom } from 'rxjs';
+import { Share } from '@capacitor/share';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
+import { MessagingService, MessagingApp } from '../../services/messaging.service';
 import { DashboardStats, LoyaltyEntry, ReportStats, Transaction, CartItem } from '../../models/models';
 import { LoyaltyTransactionsModalComponent } from './loyalty-transactions-modal/loyalty-transactions-modal.component';
 import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.component';
@@ -428,8 +431,8 @@ export class DashboardPage implements OnInit, ViewWillEnter {
     return this.loyaltyEntries.filter(e => e.visit_count >= this.loyaltyMinVisits);
   }
 
-  constructor(private api: DatabaseService, private alertCtrl: AlertController, private toastCtrl: ToastController, private modalCtrl: ModalController, private router: Router, public branding: BrandingService) {
-    addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline, hourglassOutline, createOutline, checkmarkDoneOutline });
+  constructor(private api: DatabaseService, private alertCtrl: AlertController, private toastCtrl: ToastController, private modalCtrl: ModalController, private router: Router, public branding: BrandingService, private messaging: MessagingService) {
+    addIcons({ cashOutline, receiptOutline, trendingUpOutline, trendingDownOutline, checkmarkCircleOutline, cardOutline, phonePortraitOutline, walletOutline, addCircleOutline, removeOutline, chatbubbleOutline, trashOutline, hourglassOutline, createOutline, checkmarkDoneOutline, shareOutline, callOutline });
   }
 
   ngOnInit(): void { this.load(); this.loadSummary(); this.loadLoyalty(); this.loadActionItems(); }
@@ -566,7 +569,8 @@ export class DashboardPage implements OnInit, ViewWillEnter {
     const message = template
       .replace(/{{\s*customer_name\s*}}/gi, entry.customer_name || entry.phone_number)
       .replace(/{{\s*phone_number\s*}}/gi, entry.phone_number);
-    window.open(`sms:${entry.phone_number}?body=${encodeURIComponent(message)}`, '_system');
+    
+    await this.showMessagingAppSelector(entry.phone_number, message, 'Send Loyalty Message');
   }
 
   async clearLoyalty(entry: LoyaltyEntry): Promise<void> {
@@ -720,15 +724,57 @@ export class DashboardPage implements OnInit, ViewWillEnter {
 
   async notifyPickup(tx: Transaction): Promise<void> {
     if (this.longPressActive) { this.longPressActive = false; return; }
+    if (!tx.phone_number) {
+      const toast = await this.toastCtrl.create({ message: 'No phone number available for this order.', duration: 2000, color: 'warning' });
+      await toast.present();
+      return;
+    }
     const defaultSms = `Hi {{customer_name}}! Your order #{{order_id}} is ready for pickup. Thank you for choosing DJC POS!`;
     const template = await firstValueFrom(this.api.getSetting('sms_message', defaultSms));
     const message = template
       .replace(/{\{\s*order_id\s*\}\}/gi, String(tx.id))
       .replace(/{\{\s*customer_name\s*\}\}/gi, tx.customer_name ?? '');
-    window.open(`sms:${tx.phone_number}?body=${encodeURIComponent(message)}`, '_system');
+    
+    await this.showMessagingAppSelector(tx.phone_number, message, 'Notify Customer');
     this.api.incrementNotifyCount(tx.id).subscribe(() => {
       tx.notify_count = (tx.notify_count ?? 0) + 1;
     });
+  }
+
+  private async showMessagingAppSelector(phoneNumber: string, message: string, title: string): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: title,
+      message: 'Choose how to notify the customer:',
+      buttons: [
+        {
+          text: 'SMS',
+          handler: () => {
+            this.messaging.openMessagingApp('sms', phoneNumber, message);
+          },
+        },
+        {
+          text: 'Viber',
+          handler: () => {
+            this.messaging.openMessagingApp('viber', phoneNumber, message);
+          },
+        },
+        {
+          text: 'Share',
+          handler: async () => {
+            const fullMessage = `${message}\n\nReply to: ${phoneNumber}`;
+            await Share.share({
+              title: title,
+              text: fullMessage,
+            });
+          },
+        },
+        {
+          text: 'Cancel',
+          role: 'cancel',
+        },
+      ],
+    });
+    await alert.present();
   }
 
   async markPickedUp(tx: Transaction): Promise<void> {

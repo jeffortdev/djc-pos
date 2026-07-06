@@ -6,6 +6,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonIcon, IonSpinner, IonButton, IonChip, IonLabel, IonRefresher, IonRefresherContent,
   IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton,
+  IonItem, IonInput, IonSelect, IonSelectOption,
   ModalController, AlertController, ToastController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -23,6 +24,7 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
     IonIcon, IonSpinner, IonButton, IonChip, IonLabel, IonRefresher, IonRefresherContent,
     IonInfiniteScroll, IonInfiniteScrollContent, IonSegment, IonSegmentButton,
+    IonItem, IonInput, IonSelect, IonSelectOption,
   ],
   providers: [ModalController, AlertController, ToastController],
   template: `
@@ -59,19 +61,77 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
         </ion-segment-button>
       </ion-segment>
 
+      <!-- Sales Filters -->
+      @if (activeTab === 'sales') {
+        <div class="filter-section">
+          <ion-item class="filter-item">
+            <ion-input placeholder="Search customer or phone..." [(ngModel)]="searchQuery" (ionInput)="onFilterChange()"></ion-input>
+          </ion-item>
+          <div class="filter-row">
+            <ion-item class="filter-item flex-1">
+              <ion-label>Status</ion-label>
+              <ion-select [(ngModel)]="statusFilter" (ionChange)="onFilterChange()">
+                <ion-select-option value="">All</ion-select-option>
+                <ion-select-option value="pending">Pending</ion-select-option>
+                <ion-select-option value="paid">Paid</ion-select-option>
+                <ion-select-option value="picked_up">Picked Up</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item class="filter-item flex-1">
+              <ion-label>Payment</ion-label>
+              <ion-select [(ngModel)]="paymentMethodFilter" (ionChange)="onFilterChange()">
+                <ion-select-option value="">All</ion-select-option>
+                <ion-select-option value="cash">Cash</ion-select-option>
+                <ion-select-option value="card">Card</ion-select-option>
+                <ion-select-option value="check">Check</ion-select-option>
+                <ion-select-option value="other">Other</ion-select-option>
+              </ion-select>
+            </ion-item>
+          </div>
+        </div>
+      }
+
+      <!-- Cash Filters -->
+      @if (activeTab === 'cash') {
+        <div class="filter-section">
+          <ion-item class="filter-item">
+            <ion-input placeholder="Search notes..." [(ngModel)]="cashSearchQuery" (ionInput)="onFilterChange()"></ion-input>
+          </ion-item>
+        </div>
+      }
+
+      <!-- Stock Filters -->
+      @if (activeTab === 'stock') {
+        <div class="filter-section">
+          <ion-item class="filter-item">
+            <ion-input placeholder="Search product name..." [(ngModel)]="stockSearchQuery" (ionInput)="onFilterChange()"></ion-input>
+          </ion-item>
+          <ion-item class="filter-item">
+            <ion-label>Reason</ion-label>
+            <ion-select [(ngModel)]="stockReasonFilter" (ionChange)="onFilterChange()">
+              <ion-select-option value="">All Reasons</ion-select-option>
+              <ion-select-option value="adjustment">Adjustment</ion-select-option>
+              <ion-select-option value="sold">Sold</ion-select-option>
+              <ion-select-option value="damaged">Damaged</ion-select-option>
+              <ion-select-option value="received">Received</ion-select-option>
+            </ion-select>
+          </ion-item>
+        </div>
+      }
+
       @if (activeTab === 'sales') {
         @if (loading) {
           <div class="loading-center">
             <ion-spinner name="crescent"></ion-spinner>
           </div>
-        } @else if (transactions.length === 0) {
+        } @else if (filteredTransactions.length === 0) {
           <div class="empty-state">
             <ion-icon name="receipt-outline"></ion-icon>
-            <p>No transactions found.</p>
+            <p>{{ transactions.length === 0 ? 'No transactions found.' : 'No matching transactions.' }}</p>
           </div>
         } @else {
           <div class="tx-list">
-            @for (tx of transactions; track tx.id) {
+            @for (tx of filteredTransactions; track tx.id) {
               <ion-card class="tx-card">
                 <ion-card-content>
                   <div class="tx-row">
@@ -131,14 +191,14 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
       @if (activeTab === 'cash') {
         @if (cashLoading) {
           <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
-        } @else if (registerHistory.length === 0) {
+        } @else if (filteredCashHistory.length === 0) {
           <div class="empty-state">
             <ion-icon name="wallet-outline"></ion-icon>
-            <p>No cash adjustments recorded.</p>
+            <p>{{ registerHistory.length === 0 ? 'No cash adjustments recorded.' : 'No matching entries.' }}</p>
           </div>
         } @else {
           <div class="tx-list">
-            @for (entry of registerHistory; track entry.id) {
+            @for (entry of filteredCashHistory; track entry.id) {
               <ion-card class="tx-card">
                 <ion-card-content>
                   <div class="tx-row">
@@ -166,14 +226,14 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
       @if (activeTab === 'stock') {
         @if (stockLoading) {
           <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
-        } @else if (stockHistory.length === 0) {
+        } @else if (filteredStockHistory.length === 0) {
           <div class="empty-state">
             <ion-icon name="cube-outline"></ion-icon>
-            <p>No stock changes recorded.</p>
+            <p>{{ stockHistory.length === 0 ? 'No stock changes recorded.' : 'No matching entries.' }}</p>
           </div>
         } @else {
           <div class="tx-list">
-            @for (entry of stockHistory; track entry.id) {
+            @for (entry of filteredStockHistory; track entry.id) {
               <ion-card class="tx-card">
                 <ion-card-content>
                   <div class="tx-row">
@@ -210,6 +270,10 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     .empty-state { display: flex; flex-direction: column; align-items: center; padding: 48px; opacity: 0.4; }
     .empty-state ion-icon { font-size: 3rem; }
     .history-segment { margin: 8px; }
+    .filter-section { padding: 8px; background-color: var(--ion-background-color); }
+    .filter-item { --padding-start: 0; --padding-end: 0; margin-bottom: 8px; }
+    .filter-row { display: flex; gap: 8px; }
+    .flex-1 { flex: 1; }
     .tx-list { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
     .tx-card ion-card-content { padding: 12px; }
     .tx-row { display: flex; gap: 8px; justify-content: space-between; align-items: flex-start; }
@@ -239,6 +303,47 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
   stockOffset = 0;
   stockHasMore = false;
 
+  // Filters
+  searchQuery = '';
+  statusFilter = '';
+  paymentMethodFilter = '';
+  cashSearchQuery = '';
+  stockSearchQuery = '';
+  stockReasonFilter = '';
+
+  get filteredTransactions(): Transaction[] {
+    return this.transactions.filter(tx => {
+      const matchesSearch = !this.searchQuery || 
+        (tx.customer_name?.toLowerCase().includes(this.searchQuery.toLowerCase())) ||
+        (tx.phone_number?.includes(this.searchQuery)) ||
+        (tx.notes?.toLowerCase().includes(this.searchQuery.toLowerCase())) ||
+        String(tx.id).includes(this.searchQuery);
+      
+      const status = tx.status ?? 'paid';
+      const matchesStatus = !this.statusFilter || status === this.statusFilter;
+      const matchesPayment = !this.paymentMethodFilter || tx.payment_method === this.paymentMethodFilter;
+      
+      return matchesSearch && matchesStatus && matchesPayment;
+    });
+  }
+
+  get filteredCashHistory() {
+    return this.registerHistory.filter(entry => {
+      return !this.cashSearchQuery || 
+        (entry.note?.toLowerCase().includes(this.cashSearchQuery.toLowerCase())) ||
+        String(entry.amount).includes(this.cashSearchQuery);
+    });
+  }
+
+  get filteredStockHistory() {
+    return this.stockHistory.filter(entry => {
+      const matchesSearch = !this.stockSearchQuery || 
+        (entry.product_name?.toLowerCase().includes(this.stockSearchQuery.toLowerCase()));
+      const matchesReason = !this.stockReasonFilter || entry.reason === this.stockReasonFilter;
+      return matchesSearch && matchesReason;
+    });
+  }
+
   constructor(
     private api: DatabaseService,
     private modalCtrl: ModalController,
@@ -263,7 +368,21 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
     this.stockHistory = [];
     this.stockOffset = 0;
     this.stockHasMore = false;
+    this.clearFilters();
     this.load();
+  }
+
+  clearFilters(): void {
+    this.searchQuery = '';
+    this.statusFilter = '';
+    this.paymentMethodFilter = '';
+    this.cashSearchQuery = '';
+    this.stockSearchQuery = '';
+    this.stockReasonFilter = '';
+  }
+
+  onFilterChange(): void {
+    // Filters are applied via getters, no additional action needed
   }
 
   load(): void {

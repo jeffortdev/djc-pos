@@ -14,6 +14,7 @@ import { addIcons } from 'ionicons';
 import { lockClosedOutline, chevronForwardOutline, constructOutline, addCircleOutline, cloudDownloadOutline, cloudUploadOutline, textOutline, imageOutline, layersOutline, trashOutline, sunnyOutline, moonOutline, laptopOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService, ColorTheme } from '../../services/branding.service';
+import { MessagingService } from '../../services/messaging.service';
 
 @Component({
   selector: 'app-settings',
@@ -275,6 +276,25 @@ import { BrandingService, ColorTheme } from '../../services/branding.service';
           Save Loyalty SMS Template
         </ion-button>
       </div>
+
+      <div class="section-header">Messaging Apps</div>
+      <ion-list inset>
+        <ion-item lines="none">
+          <ion-note>
+            <p>Available messaging apps for sending notifications:</p>
+            <ul style="margin: 8px 0; padding-left: 18px; font-size: 0.85rem;">
+              <li><strong>SMS</strong> - Standard text messaging</li>
+              <li><strong>WhatsApp</strong> - Send via WhatsApp Web/App</li>
+              <li><strong>Viber</strong> - Send via Viber App</li>
+              <li><strong>WeChat</strong> - Send via WeChat (copy-paste)</li>
+              <li><strong>Messenger</strong> - Send via Facebook Messenger</li>
+            </ul>
+            <p style="font-size: 0.8rem; opacity: 0.7; margin-top: 8px;">
+              When you tap the notification button, you'll be prompted to choose which app to use.
+            </p>
+          </ion-note>
+        </ion-item>
+      </ion-list>
 
       <div class="section-header">Backup</div>
       <ion-list inset>
