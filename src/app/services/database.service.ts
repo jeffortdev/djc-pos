@@ -932,20 +932,27 @@ export class DatabaseService {
     }));
   }
 
-  mergeCustomers(sourcePhone: string, targetPhone: string, targetName: string): Observable<{ ok: boolean }> {
+  mergeCustomers(sourcePhone: string, targetPhone: string, targetName: string, sourceName?: string): Observable<{ ok: boolean }> {
     return from(this.ready.then(async () => {
+      const sourceKey = (sourceName ?? '').trim().toLowerCase();
       if (!this.isNative) {
-        const list = this.local.getTransactions().map(t =>
-          t.phone_number === sourcePhone
-            ? { ...t, phone_number: targetPhone, customer_name: targetName || t.customer_name }
-            : t
-        );
+        const list = this.local.getTransactions().map(t => {
+          const matchesPhone = t.phone_number === sourcePhone;
+          // Walk-in transactions never got a phone number recorded, so they're invisible
+          // to the Customers Admin merge picker. Catch them here by matching on name so
+          // they don't keep resurfacing the old (merged-away) name in autocomplete.
+          const matchesOrphanedName = !t.phone_number && !!sourceKey && (t.customer_name ?? '').trim().toLowerCase() === sourceKey;
+          if (!matchesPhone && !matchesOrphanedName) return t;
+          return { ...t, phone_number: targetPhone, customer_name: targetName || t.customer_name };
+        });
         this.local.saveTransactions(list);
         return { ok: true };
       }
       await this.sqliteStore!.run(
-        `UPDATE transactions SET phone_number=?, customer_name=? WHERE phone_number=?`,
-        [targetPhone, targetName, sourcePhone]
+        `UPDATE transactions SET phone_number=?, customer_name=?
+         WHERE phone_number=?
+            OR ((phone_number IS NULL OR phone_number = '') AND ? != '' AND LOWER(customer_name)=?)`,
+        [targetPhone, targetName, sourcePhone, sourceKey, sourceKey]
       );
       return { ok: true };
     }));

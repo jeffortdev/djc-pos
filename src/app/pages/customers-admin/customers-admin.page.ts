@@ -401,7 +401,7 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
 
                     const sources = group.customers.filter(c => c.phone_number !== target.phone_number);
                     for (const src of sources) {
-                      await firstValueFrom(this.api.mergeCustomers(src.phone_number, target.phone_number, target.customer_name));
+                      await firstValueFrom(this.api.mergeCustomers(src.phone_number, target.phone_number, target.customer_name, src.customer_name));
                     }
                     this.loadAll();
                     const toast = await this.toastCtrl.create({ message: 'Records merged successfully.', duration: 2000, color: 'success' });
