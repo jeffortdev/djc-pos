@@ -11,7 +11,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   peopleOutline, trashOutline, gitMergeOutline, warningOutline,
-  personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline,
+  personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline, lockClosedOutline,
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
@@ -46,9 +46,11 @@ interface DuplicateGroup {
           </div>
         </ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="loadAll()" aria-label="Refresh">
-            <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
-          </ion-button>
+          @if (authorized) {
+            <ion-button (click)="loadAll()" aria-label="Refresh">
+              <ion-icon name="refresh-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+          }
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -57,6 +59,17 @@ interface DuplicateGroup {
       <ion-refresher slot="fixed" (ionRefresh)="onRefresh($event)">
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
+
+      @if (!authorized) {
+        <div class="locked-state">
+          <ion-icon name="lock-closed-outline"></ion-icon>
+          <p>Manage Customers is restricted to admin access.<br>Enter the PIN to continue.</p>
+          <ion-button fill="outline" (click)="promptForAccess()">
+            <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
+            Enter PIN
+          </ion-button>
+        </div>
+      } @else {
 
       <!-- Duplicates alert section -->
       @if (!loading && duplicates.length > 0) {
@@ -151,12 +164,16 @@ interface DuplicateGroup {
           }
         </div>
       }
+      }
     </ion-content>
   `,
   styles: [`
     .title-inner-wrap { display: flex; align-items: center; gap: 8px; }
     .header-logo { height: 28px; width: auto; }
     .header-title { font-size: 0.9rem; font-weight: 600; }
+    .locked-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; gap: 12px; padding: 24px; text-align: center; opacity: 0.8; }
+    .locked-state ion-icon { font-size: 3rem; opacity: 0.5; }
+    .locked-state p { opacity: 0.6; margin: 0; }
 
     .loading-center { display: flex; justify-content: center; align-items: center; height: 40vh; }
     .empty-state { display: flex; flex-direction: column; align-items: center; padding: 48px; opacity: 0.4; }
@@ -203,6 +220,7 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
   loading = true;
   filterTerm = '';
   dismissedGroups = new Set<string>();
+  authorized = false;
 
   get filteredCustomers(): CustomerSummary[] {
     const term = this.filterTerm.toLowerCase().trim();
@@ -258,12 +276,43 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ peopleOutline, trashOutline, gitMergeOutline, warningOutline, personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline });
+    addIcons({ peopleOutline, trashOutline, gitMergeOutline, warningOutline, personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline, lockClosedOutline });
   }
 
   ngOnInit(): void { }
 
-  ionViewWillEnter(): void { this.loadAll(); }
+  ionViewWillEnter(): void {
+    this.authorized = false;
+    this.promptForAccess();
+  }
+
+  async promptForAccess(): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'Admin PIN Required',
+      message: 'Enter the admin PIN to manage customers.',
+      backdropDismiss: false,
+      inputs: [{ name: 'pin', type: 'password', placeholder: 'PIN' }],
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'OK',
+          handler: async (data) => {
+            const pin = data.pin?.toString() ?? '';
+            const stored = await firstValueFrom(this.api.getSetting('register_pin', '1234'));
+            if (pin !== stored) {
+              const err = await this.alertCtrl.create({ header: 'Incorrect PIN', message: 'The PIN you entered is wrong.', buttons: ['OK'] });
+              await err.present();
+              return false;
+            }
+            this.authorized = true;
+            this.loadAll();
+            return true;
+          },
+        },
+      ],
+    });
+    await alert.present();
+  }
 
   loadAll(): void {
     this.loading = true;

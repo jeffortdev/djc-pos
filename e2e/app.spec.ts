@@ -29,8 +29,34 @@ test('load transactions page and switch tabs', async ({ page }) => {
   await expect(cashButton).toHaveClass(/segment-button-checked/);
 });
 
-test('load reports page and show custom date filter inputs', async ({ page }) => {
+test('reports page requires admin PIN before showing report data', async ({ page }) => {
   await page.goto('/reports');
+
+  const pinAlert = page.locator('ion-alert').last();
+  await expect(pinAlert.getByText('Admin PIN Required')).toBeVisible();
+
+  // Wrong PIN keeps the page locked
+  await pinAlert.locator('input[type="password"]').fill('0000');
+  await pinAlert.getByRole('button', { name: 'OK' }).click();
+  const errorAlert = page.locator('ion-alert').last();
+  await expect(errorAlert.getByText('Incorrect PIN')).toBeVisible();
+  await errorAlert.getByRole('button', { name: 'OK' }).click();
+  await expect(page.getByText('Reports are restricted to admin access.')).toBeVisible();
+
+  // Cancelling also keeps the page locked
+  await page.getByRole('button', { name: 'Enter PIN' }).click();
+  const cancelAlert = page.locator('ion-alert').last();
+  await cancelAlert.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByText('Reports are restricted to admin access.')).toBeVisible();
+});
+
+test('load reports page and show custom date filter inputs after correct PIN', async ({ page }) => {
+  await page.goto('/reports');
+
+  const pinAlert = page.locator('ion-alert').last();
+  await expect(pinAlert.getByText('Admin PIN Required')).toBeVisible();
+  await pinAlert.locator('input[type="password"]').fill('1234');
+  await pinAlert.getByRole('button', { name: 'OK' }).click();
 
   await expect(page.getByText('Today')).toBeVisible();
   await expect(page.locator('ion-segment-button[value="custom"] ion-label')).toBeVisible();
@@ -41,23 +67,58 @@ test('load reports page and show custom date filter inputs', async ({ page }) =>
   await expect(page.locator('input[type="date"]').nth(1)).toBeVisible();
 });
 
-test('load settings page and require PIN before managing admin pages', async ({ page }) => {
+test('load settings page and navigate directly to admin pages (PIN enforced on destination)', async ({ page }) => {
   await page.goto('/settings');
 
   await expect(page.getByText('Manage Services')).toBeVisible();
   await expect(page.getByText('Manage Products')).toBeVisible();
+  await expect(page.getByText('Manage Customers')).toBeVisible();
 
   await page.getByText('Manage Services').click();
-  const serviceAlert = page.locator('ion-alert').last();
-  await expect(serviceAlert.getByText('Enter PIN')).toBeVisible();
-  await serviceAlert.getByRole('button', { name: 'OK' }).click();
-  await serviceAlert.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page).toHaveURL(/\/services$/);
+  await expect(page.locator('ion-alert').last().getByText('Admin PIN Required')).toBeVisible();
+});
 
-  await page.getByText('Manage Products').click();
-  const productAlert = page.locator('ion-alert').last();
-  await expect(productAlert.getByText('Enter PIN')).toBeVisible();
-  await productAlert.getByRole('button', { name: 'OK' }).click();
-  await productAlert.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page).toHaveURL(/\/settings$/);
+test('services page requires admin PIN; wrong PIN keeps it locked, correct PIN unlocks it', async ({ page }) => {
+  await page.goto('/services');
+
+  const alert = page.locator('ion-alert').last();
+  await expect(alert.getByText('Admin PIN Required')).toBeVisible();
+  await alert.locator('input[type="password"]').fill('0000');
+  await alert.getByRole('button', { name: 'OK' }).click();
+  await expect(page.locator('ion-alert').last().getByText('Incorrect PIN')).toBeVisible();
+  await page.getByRole('button', { name: 'OK' }).click();
+  await expect(page.getByText('Manage Services is restricted to admin access.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Enter PIN' }).click();
+  const retryAlert = page.locator('ion-alert').last();
+  await retryAlert.locator('input[type="password"]').fill('1234');
+  await retryAlert.getByRole('button', { name: 'OK' }).click();
+  await expect(page.getByPlaceholder('Filter services…')).toBeVisible();
+});
+
+test('products page requires admin PIN; correct PIN reveals product list', async ({ page }) => {
+  await page.goto('/products');
+
+  const alert = page.locator('ion-alert').last();
+  await expect(alert.getByText('Admin PIN Required')).toBeVisible();
+  await alert.locator('input[type="password"]').fill('1234');
+  await alert.getByRole('button', { name: 'OK' }).click();
+
+  await expect(page.getByPlaceholder('Filter products…')).toBeVisible();
+});
+
+test('load customers-admin page and filter the customer list', async ({ page }) => {
+  await page.goto('/customers');
+
+  const alert = page.locator('ion-alert').last();
+  await expect(alert.getByText('Admin PIN Required')).toBeVisible();
+  await alert.locator('input[type="password"]').fill('1234');
+  await alert.getByRole('button', { name: 'OK' }).click();
+
+  await expect(page.getByText(/All Customers/)).toBeVisible();
+  const search = page.getByPlaceholder('Search by name or phone…');
+  await expect(search).toBeVisible();
+  await search.fill('zzz-no-such-customer');
+  await expect(page.getByText('No customers match your search.')).toBeVisible();
 });

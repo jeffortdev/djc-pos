@@ -461,58 +461,6 @@ export class SettingsPage {
     this.colorTheme = (this.branding.colorTheme$.value as ColorTheme);
   }
 
-  async requestPin(): Promise<boolean> {
-    let granted = false;
-    const alert = await this.alertCtrl.create({
-      header: 'Enter PIN',
-      inputs: [{ name: 'pin', type: 'password', placeholder: 'PIN' }],
-      backdropDismiss: false,
-      buttons: [
-        {
-          text: 'Cancel',
-          role: 'cancel',
-          handler: () => {
-            granted = false;
-            return true;
-          },
-        },
-        {
-          text: 'OK',
-          handler: async (data) => {
-            const pin = data.pin?.toString().trim() ?? '';
-            if (!pin) {
-              const toast = await this.toastCtrl.create({
-                message: 'PIN is required.',
-                duration: 2000,
-                color: 'warning',
-              });
-              await toast.present();
-              return false;
-            }
-
-            const stored = await firstValueFrom(this.api.getSetting('register_pin', '1234'));
-            if (pin !== stored) {
-              const errorAlert = await this.alertCtrl.create({
-                header: 'Incorrect PIN',
-                message: 'The PIN you entered is wrong.',
-                buttons: ['OK'],
-              });
-              await errorAlert.present();
-              return false;
-            }
-
-            granted = true;
-            return true;
-          },
-        },
-      ],
-    });
-
-    await alert.present();
-    await alert.onDidDismiss();
-    return granted;
-  }
-
   async saveMonthlyTarget(): Promise<void> {
     this.targetSaving = true;
     await firstValueFrom(this.api.setSetting('monthly_target', (this.monthlyTarget ?? 0).toString()));
@@ -521,22 +469,19 @@ export class SettingsPage {
     await toast.present();
   }
 
-  async goServices(): Promise<void> {
-    if (await this.requestPin()) {
-      this.router.navigate(['/services']);
-    }
+  // PIN verification is enforced by the destination pages themselves (Services, Products,
+  // Customers all require the admin PIN on ionViewWillEnter), so navigation here is direct —
+  // this also prevents having to enter the PIN twice.
+  goServices(): void {
+    this.router.navigate(['/services']);
   }
 
-  async goProducts(): Promise<void> {
-    if (await this.requestPin()) {
-      this.router.navigate(['/products']);
-    }
+  goProducts(): void {
+    this.router.navigate(['/products']);
   }
 
-  async goCustomers(): Promise<void> {
-    if (await this.requestPin()) {
-      this.router.navigate(['/customers']);
-    }
+  goCustomers(): void {
+    this.router.navigate(['/customers']);
   }
 
   clearError(): void {

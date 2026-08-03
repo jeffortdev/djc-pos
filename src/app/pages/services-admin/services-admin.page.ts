@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { ViewWillEnter } from '@ionic/angular';
 import { CommonModule, CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -8,7 +9,8 @@ import {
   IonRefresherContent, IonSearchbar, AlertController, ToastController, ModalController
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart, swapVerticalOutline } from 'ionicons/icons';
+import { addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart, swapVerticalOutline, lockClosedOutline } from 'ionicons/icons';
+import { firstValueFrom } from 'rxjs';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { LaundryService } from '../../models/models';
@@ -39,12 +41,14 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
           </div>
         </ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="sortAsc = !sortAsc" aria-label="Toggle sort order">
-            <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
-          </ion-button>
-          <ion-button (click)="startAdd()">
-            <ion-icon name="add-outline" slot="icon-only"></ion-icon>
-          </ion-button>
+          @if (authorized) {
+            <ion-button (click)="sortAsc = !sortAsc" aria-label="Toggle sort order">
+              <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+            <ion-button (click)="startAdd()">
+              <ion-icon name="add-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+          }
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -53,6 +57,17 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
       <ion-refresher slot="fixed" (ionRefresh)="refreshList($event)">
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
+
+      @if (!authorized) {
+        <div class="locked-state">
+          <ion-icon name="lock-closed-outline"></ion-icon>
+          <p>Manage Services is restricted to admin access.<br>Enter the PIN to continue.</p>
+          <ion-button fill="outline" (click)="promptForAccess()">
+            <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
+            Enter PIN
+          </ion-button>
+        </div>
+      } @else {
 
       <ion-searchbar
         [(ngModel)]="filterTerm"
@@ -156,10 +171,14 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
           </ion-card>
         }
       </div>
+      }
     </ion-content>
   `,
   styles: [`
     .loading-center { display: flex; justify-content: center; align-items: center; height: 60vh; }
+    .locked-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; gap: 12px; padding: 24px; text-align: center; opacity: 0.8; }
+    .locked-state ion-icon { font-size: 3rem; opacity: 0.5; }
+    .locked-state p { opacity: 0.6; margin: 0; }
     .admin-search { padding: 4px 8px 0; }
     .edit-card { margin: 8px; }
     .form-heading { font-size: 1rem; font-weight: 600; margin: 0 0 8px; }
@@ -177,7 +196,7 @@ const UNITS = ['per kg', 'per load', 'per item', 'per piece', 'per pair', 'per s
   `],
 
 })
-export class ServicesAdminPage implements OnInit {
+export class ServicesAdminPage implements OnInit, ViewWillEnter {
   services: LaundryService[] = [];
   loading = true;
   editing = false;
@@ -188,6 +207,7 @@ export class ServicesAdminPage implements OnInit {
   private editId = 0;
   filterTerm = '';
   sortAsc = true;
+  authorized = false;
 
   get filteredServices(): LaundryService[] {
     const term = this.filterTerm.toLowerCase().trim();
@@ -202,10 +222,42 @@ export class ServicesAdminPage implements OnInit {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart, swapVerticalOutline });
+    addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline, heartOutline, heart, swapVerticalOutline, lockClosedOutline });
   }
 
   ngOnInit(): void { this.loadServices(); }
+
+  ionViewWillEnter(): void {
+    this.authorized = false;
+    this.promptForAccess();
+  }
+
+  async promptForAccess(): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'Admin PIN Required',
+      message: 'Enter the admin PIN to manage services.',
+      backdropDismiss: false,
+      inputs: [{ name: 'pin', type: 'password', placeholder: 'PIN' }],
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'OK',
+          handler: async (data) => {
+            const pin = data.pin?.toString() ?? '';
+            const stored = await firstValueFrom(this.api.getSetting('register_pin', '1234'));
+            if (pin !== stored) {
+              const err = await this.alertCtrl.create({ header: 'Incorrect PIN', message: 'The PIN you entered is wrong.', buttons: ['OK'] });
+              await err.present();
+              return false;
+            }
+            this.authorized = true;
+            return true;
+          },
+        },
+      ],
+    });
+    await alert.present();
+  }
 
   loadServices(): void {
     this.api.getAllServices().subscribe(s => { this.services = s; this.loading = false; });
