@@ -873,7 +873,9 @@ export class DatabaseService {
         for (const tx of this.local.getTransactions()) {
           const phone = tx.phone_number ?? '';
           if (!phone) continue;
-          const name = tx.customer_name ?? '';
+          // customer_name is optional — some transactions only have an identifying name/note
+          // written in the notes field, so fall back to that when building the display name.
+          const name = (tx.customer_name || tx.notes || '').trim();
           const existing = map.get(phone);
           if (existing) {
             existing.visit_count++;
@@ -896,7 +898,11 @@ export class DatabaseService {
       }
       const r = await this.sqliteStore!.query(
         `SELECT phone_number,
-                COALESCE(NULLIF(MAX(CASE WHEN customer_name != '' THEN customer_name END), ''), phone_number) AS customer_name,
+                COALESCE(
+                  NULLIF(MAX(CASE WHEN customer_name != '' THEN customer_name END), ''),
+                  NULLIF(MAX(CASE WHEN notes != '' THEN notes END), ''),
+                  phone_number
+                ) AS customer_name,
                 COUNT(*) AS visit_count,
                 SUM(total) AS total_spent,
                 MAX(created_at) AS last_visit
@@ -912,6 +918,117 @@ export class DatabaseService {
         total_spent: Number(row.total_spent),
         last_visit: row.last_visit as string,
       }));
+    }));
+  }
+
+  // Walk-in transactions never had a phone number recorded, so getAllCustomers() (which
+  // groups by phone_number) skips them entirely. That made them invisible to the Customers
+  // Admin duplicate scanner — a walk-in name that matched an existing phoned customer's name
+  // was never flagged. This aggregates those phone-less transactions by name (case/whitespace
+  // insensitive) so they can be included in duplicate detection, with phone_number left as ''.
+  // customer_name is optional, so also fall back to notes when the name field is blank.
+  getOrphanCustomers(): Observable<import('../models/models').CustomerSummary[]> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const map = new Map<string, import('../models/models').CustomerSummary>();
+        for (const tx of this.local.getTransactions()) {
+          if (tx.phone_number) continue;
+          const name = (tx.customer_name || tx.notes || '').trim();
+          if (!name) continue;
+          const key = name.toLowerCase();
+          const existing = map.get(key);
+          if (existing) {
+            existing.visit_count++;
+            existing.total_spent += tx.total ?? 0;
+            if (tx.created_at > existing.last_visit) {
+              existing.last_visit = tx.created_at;
+              existing.customer_name = name;
+            }
+          } else {
+            map.set(key, {
+              phone_number: '',
+              customer_name: name,
+              visit_count: 1,
+              total_spent: tx.total ?? 0,
+              last_visit: tx.created_at,
+            });
+          }
+        }
+        return [...map.values()];
+      }
+      const r = await this.sqliteStore!.query(
+        `SELECT MAX(COALESCE(NULLIF(customer_name,''), NULLIF(notes,''))) AS customer_name,
+                COUNT(*) AS visit_count,
+                SUM(total) AS total_spent,
+                MAX(created_at) AS last_visit
+         FROM transactions
+         WHERE (phone_number IS NULL OR phone_number = '')
+           AND COALESCE(NULLIF(customer_name,''), NULLIF(notes,'')) IS NOT NULL
+         GROUP BY LOWER(TRIM(COALESCE(NULLIF(customer_name,''), NULLIF(notes,''))))`
+      );
+      return ((r.values ?? []) as any[]).map(row => ({
+        phone_number: '',
+        customer_name: row.customer_name as string,
+        visit_count: Number(row.visit_count),
+        total_spent: Number(row.total_spent),
+        last_visit: row.last_visit as string,
+      }));
+    }));
+  }
+
+  // Returns every distinct identifier (customer_name, falling back to notes) that has been
+  // used historically with the given phone number, with a usage count for each. Used by the
+  // POS payment screen to detect when the same phone number has been recorded under more than
+  // one name/note over time, so the cashier can consolidate them into a single identity before
+  // finalizing a new payment.
+  getPhoneIdentifiers(phone: string): Observable<{ identifier: string; count: number }[]> {
+    return from(this.ready.then(async () => {
+      if (!phone) return [];
+      if (!this.isNative) {
+        const map = new Map<string, { identifier: string; count: number }>();
+        for (const tx of this.local.getTransactions()) {
+          if (tx.phone_number !== phone) continue;
+          const identifier = (tx.customer_name || tx.notes || '').trim();
+          if (!identifier) continue;
+          const key = identifier.toLowerCase();
+          const existing = map.get(key);
+          if (existing) existing.count++;
+          else map.set(key, { identifier, count: 1 });
+        }
+        return [...map.values()].sort((a, b) => b.count - a.count);
+      }
+      const r = await this.sqliteStore!.query(
+        `SELECT COALESCE(NULLIF(customer_name,''), NULLIF(notes,'')) AS identifier, COUNT(*) AS count
+         FROM transactions
+         WHERE phone_number = ? AND COALESCE(NULLIF(customer_name,''), NULLIF(notes,'')) IS NOT NULL
+         GROUP BY LOWER(TRIM(COALESCE(NULLIF(customer_name,''), NULLIF(notes,''))))
+         ORDER BY count DESC`,
+        [phone]
+      );
+      return ((r.values ?? []) as any[]).map(row => ({
+        identifier: row.identifier as string,
+        count: Number(row.count),
+      }));
+    }));
+  }
+
+  // Standardizes every transaction for a given phone number onto a single chosen customer_name,
+  // so one phone number always maps to exactly one customer going forward (regardless of
+  // whether older records used the name field, the notes field, or nothing at all).
+  unifyPhoneIdentity(phone: string, chosenName: string): Observable<{ ok: boolean }> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const list = this.local.getTransactions().map(t =>
+          t.phone_number === phone ? { ...t, customer_name: chosenName } : t
+        );
+        this.local.saveTransactions(list);
+        return { ok: true };
+      }
+      await this.sqliteStore!.run(
+        `UPDATE transactions SET customer_name=? WHERE phone_number=?`,
+        [chosenName, phone]
+      );
+      return { ok: true };
     }));
   }
 
@@ -937,11 +1054,15 @@ export class DatabaseService {
       const sourceKey = (sourceName ?? '').trim().toLowerCase();
       if (!this.isNative) {
         const list = this.local.getTransactions().map(t => {
-          const matchesPhone = t.phone_number === sourcePhone;
+          // Guard against an empty sourcePhone: '' would otherwise equal every walk-in
+          // transaction's phone_number and merge unrelated customers together.
+          const matchesPhone = !!sourcePhone && t.phone_number === sourcePhone;
           // Walk-in transactions never got a phone number recorded, so they're invisible
-          // to the Customers Admin merge picker. Catch them here by matching on name so
-          // they don't keep resurfacing the old (merged-away) name in autocomplete.
-          const matchesOrphanedName = !t.phone_number && !!sourceKey && (t.customer_name ?? '').trim().toLowerCase() === sourceKey;
+          // to the Customers Admin merge picker. Catch them here by matching on name (falling
+          // back to notes, since customer_name is optional) so they don't keep resurfacing the
+          // old (merged-away) identity in autocomplete.
+          const identifier = (t.customer_name || t.notes || '').trim().toLowerCase();
+          const matchesOrphanedName = !t.phone_number && !!sourceKey && identifier === sourceKey;
           if (!matchesPhone && !matchesOrphanedName) return t;
           return { ...t, phone_number: targetPhone, customer_name: targetName || t.customer_name };
         });
@@ -950,9 +1071,9 @@ export class DatabaseService {
       }
       await this.sqliteStore!.run(
         `UPDATE transactions SET phone_number=?, customer_name=?
-         WHERE phone_number=?
-            OR ((phone_number IS NULL OR phone_number = '') AND ? != '' AND LOWER(customer_name)=?)`,
-        [targetPhone, targetName, sourcePhone, sourceKey, sourceKey]
+         WHERE (? != '' AND phone_number=?)
+            OR ((phone_number IS NULL OR phone_number = '') AND ? != '' AND LOWER(TRIM(COALESCE(NULLIF(customer_name,''), NULLIF(notes,''))))=?)`,
+        [targetPhone, targetName, sourcePhone, sourcePhone, sourceKey, sourceKey]
       );
       return { ok: true };
     }));

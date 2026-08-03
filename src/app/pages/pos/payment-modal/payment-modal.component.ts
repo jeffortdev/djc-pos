@@ -11,6 +11,7 @@ import {
   cashOutline, cardOutline, phonePortraitOutline,
   checkmarkDoneOutline, closeOutline, swapHorizontalOutline, hourglassOutline
 } from 'ionicons/icons';
+import { firstValueFrom } from 'rxjs';
 import { CartItem } from '../../../models/models';
 import { BrandingService } from '../../../services/branding.service';
 import { DatabaseService } from '../../../services/database.service';
@@ -262,6 +263,65 @@ export class PaymentModalComponent implements OnInit {
     });
   }
 
+  /**
+   * Before finalizing a payment or pickup registration, check whether this phone number has
+   * been recorded under more than one identity in the past — customer_name and notes are both
+   * used interchangeably as an identifier since customer_name is optional. If duplicates are
+   * found, prompt the cashier to pick a single canonical name and standardize every historical
+   * transaction for this phone onto it, so one phone number always maps to exactly one customer.
+   * Returns false if the cashier cancels out of the picker, so the caller can abort payment.
+   */
+  async resolvePhoneDuplicates(): Promise<boolean> {
+    const phone = this.phoneNumber.trim();
+    if (!phone) return true;
+
+    const identifiers = await firstValueFrom(this.db.getPhoneIdentifiers(phone));
+    const currentName = this.customerName.trim();
+
+    const byKey = new Map<string, { identifier: string; count: number }>();
+    for (const i of identifiers) byKey.set(i.identifier.toLowerCase(), { ...i });
+    if (currentName && !byKey.has(currentName.toLowerCase())) {
+      byKey.set(currentName.toLowerCase(), { identifier: currentName, count: 0 });
+    }
+    const candidates = [...byKey.values()].sort((a, b) => b.count - a.count);
+
+    if (candidates.length <= 1) return true;
+
+    return new Promise<boolean>((resolve) => {
+      (async () => {
+        const options = candidates.map((c, i) => ({
+          type: 'radio' as const,
+          label: `${c.identifier}${c.count > 0 ? ` (${c.count} visit${c.count !== 1 ? 's' : ''})` : ' (new)'}`,
+          value: c.identifier,
+          checked: i === 0,
+        }));
+
+        const alert = await this.alertCtrl.create({
+          header: 'Duplicate Customer Records',
+          message: `This phone number has been used with ${candidates.length} different names/notes. Pick one to keep — all past records will be updated to match.`,
+          inputs: options,
+          backdropDismiss: false,
+          buttons: [
+            { text: 'Cancel', role: 'cancel', handler: () => { resolve(false); return true; } },
+            {
+              text: 'Merge & Continue',
+              handler: (chosen: string) => {
+                if (!chosen) return false;
+                (async () => {
+                  this.customerName = chosen;
+                  await firstValueFrom(this.db.unifyPhoneIdentity(phone, chosen));
+                  resolve(true);
+                })();
+                return true;
+              },
+            },
+          ],
+        });
+        await alert.present();
+      })();
+    });
+  }
+
   selectSuggestion(s: { name: string; phone_number: string }): void {
     this.customerName = s.name;
     this.phoneNumber = s.phone_number;
@@ -292,7 +352,9 @@ export class PaymentModalComponent implements OnInit {
     this.modalCtrl.dismiss(null);
   }
 
-  confirm(): void {
+  async confirm(): Promise<void> {
+    if (!(await this.resolvePhoneDuplicates())) return;
+
     const result: PaymentResult = {
       payment_method: this.method,
       amount_tendered: this.method === 'cash' ? this.tendered : this.total,
@@ -305,7 +367,9 @@ export class PaymentModalComponent implements OnInit {
     this.modalCtrl.dismiss({ confirmed: true, result });
   }
 
-  registerPickup(): void {
+  async registerPickup(): Promise<void> {
+    if (!(await this.resolvePhoneDuplicates())) return;
+
     this.modalCtrl.dismiss({
       confirmed: true,
       payLater: true,

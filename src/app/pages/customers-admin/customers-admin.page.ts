@@ -16,7 +16,7 @@ import {
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { CustomerSummary } from '../../models/models';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, forkJoin } from 'rxjs';
 
 interface DuplicateGroup {
   reason: 'name' | 'phone';
@@ -82,7 +82,7 @@ interface DuplicateGroup {
             <ion-card-content>
               <div class="dup-reason">
                 <ion-chip color="warning" size="small">
-                  <ion-label>{{ group.reason === 'name' ? 'Same Name' : 'Similar Phone' }}</ion-label>
+                  <ion-label>{{ group.reason === 'name' ? 'Same Name/Notes' : 'Similar Phone' }}</ion-label>
                 </ion-chip>
                 <span class="dup-label">{{ group.label }}</span>
               </div>
@@ -90,7 +90,7 @@ interface DuplicateGroup {
                 <div class="dup-row">
                   <div class="cust-info">
                     <span class="cust-name">{{ c.customer_name || '(no name)' }}</span>
-                    <span class="cust-phone">{{ c.phone_number }}</span>
+                    <span class="cust-phone">{{ c.phone_number || '(no phone — walk-in)' }}</span>
                   </div>
                   <span class="cust-visits">{{ c.visit_count }} visit{{ c.visit_count !== 1 ? 's' : '' }}</span>
                 </div>
@@ -217,6 +217,7 @@ interface DuplicateGroup {
 })
 export class CustomersAdminPage implements OnInit, ViewWillEnter {
   customers: CustomerSummary[] = [];
+  orphanCustomers: CustomerSummary[] = [];
   loading = true;
   filterTerm = '';
   dismissedGroups = new Set<string>();
@@ -234,9 +235,11 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
   get duplicates(): DuplicateGroup[] {
     const groups: DuplicateGroup[] = [];
 
-    // Same name (case-insensitive), multiple phone numbers
+    // Same name (case-insensitive), multiple phone numbers — also scans walk-in transactions
+    // that never had a phone number recorded, so those aren't silently excluded from the scan.
+    const combined: CustomerSummary[] = [...this.customers, ...this.orphanCustomers];
     const byName = new Map<string, CustomerSummary[]>();
-    for (const c of this.customers) {
+    for (const c of combined) {
       if (!c.customer_name) continue;
       const key = c.customer_name.toLowerCase().trim();
       if (!byName.has(key)) byName.set(key, []);
@@ -244,6 +247,9 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
     }
     for (const [key, list] of byName.entries()) {
       if (list.length > 1) {
+        // Put entries that have a phone number first so Consolidate defaults to keeping one of
+        // those (merging into a phone-less record would strip the phone from all sources).
+        list.sort((a, b) => (a.phone_number ? 0 : 1) - (b.phone_number ? 0 : 1));
         groups.push({ reason: 'name', label: list[0].customer_name, customers: list });
       }
     }
@@ -317,15 +323,23 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
   loadAll(): void {
     this.loading = true;
     this.dismissedGroups.clear();
-    this.api.getAllCustomers().subscribe(list => {
-      this.customers = list;
+    forkJoin({
+      customers: this.api.getAllCustomers(),
+      orphans: this.api.getOrphanCustomers(),
+    }).subscribe(({ customers, orphans }) => {
+      this.customers = customers;
+      this.orphanCustomers = orphans;
       this.loading = false;
     });
   }
 
   onRefresh(event: CustomEvent): void {
-    this.api.getAllCustomers().subscribe(list => {
-      this.customers = list;
+    forkJoin({
+      customers: this.api.getAllCustomers(),
+      orphans: this.api.getOrphanCustomers(),
+    }).subscribe(({ customers, orphans }) => {
+      this.customers = customers;
+      this.orphanCustomers = orphans;
       (event.target as HTMLIonRefresherElement).complete();
     });
   }
@@ -415,7 +429,7 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
   async consolidate(group: DuplicateGroup): Promise<void> {
     const options = group.customers.map((c, i) => ({
       type: 'radio' as const,
-      label: `${c.customer_name || '(no name)'} — ${c.phone_number} (${c.visit_count} visits)`,
+      label: `${c.customer_name || '(no name)'} — ${c.phone_number || '(no phone)'} (${c.visit_count} visits)`,
       value: i.toString(),
       checked: i === 0,
     }));
@@ -430,7 +444,16 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
           text: 'Merge',
           handler: async (idx: string) => {
             const target = group.customers[Number(idx)];
-            if (!target) return;
+            if (!target) return false;
+            if (!target.phone_number) {
+              const err = await this.alertCtrl.create({
+                header: 'Phone Number Required',
+                message: 'Please keep a record that has a phone number — merging into a walk-in (no phone) record would remove the phone number from the others.',
+                buttons: ['OK'],
+              });
+              await err.present();
+              return false;
+            }
 
             const pinAlert = await this.alertCtrl.create({
               header: 'Enter PIN to confirm',
@@ -461,6 +484,7 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
               ],
             });
             await pinAlert.present();
+            return true;
           },
         },
       ],
