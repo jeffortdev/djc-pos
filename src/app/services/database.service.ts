@@ -1012,6 +1012,50 @@ export class DatabaseService {
     }));
   }
 
+  // Scans across ALL phone numbers for transactions recorded under more than one distinct
+  // identity (customer_name, falling back to notes) — i.e. the same phone number was used with
+  // a different name/nickname over time. Used by the Customers Admin page to flag same-phone/
+  // different-name conflicts on every load, alongside the same-name/different-phone scan.
+  getPhoneNameConflicts(): Observable<{ phone_number: string; identifiers: { identifier: string; count: number }[] }[]> {
+    return from(this.ready.then(async () => {
+      const byPhone = new Map<string, Map<string, { identifier: string; count: number }>>();
+      const addRow = (phone: string, rawIdentifier: string) => {
+        const identifier = rawIdentifier.trim();
+        if (!phone || !identifier) return;
+        let idents = byPhone.get(phone);
+        if (!idents) { idents = new Map(); byPhone.set(phone, idents); }
+        const key = identifier.toLowerCase();
+        const existing = idents.get(key);
+        if (existing) existing.count++;
+        else idents.set(key, { identifier, count: 1 });
+      };
+
+      if (!this.isNative) {
+        for (const tx of this.local.getTransactions()) {
+          addRow(tx.phone_number ?? '', (tx.customer_name || tx.notes || ''));
+        }
+      } else {
+        const r = await this.sqliteStore!.query(
+          `SELECT phone_number, COALESCE(NULLIF(customer_name,''), NULLIF(notes,'')) AS identifier
+           FROM transactions
+           WHERE phone_number IS NOT NULL AND phone_number != ''
+             AND COALESCE(NULLIF(customer_name,''), NULLIF(notes,'')) IS NOT NULL`
+        );
+        for (const row of (r.values ?? []) as any[]) {
+          addRow(row.phone_number as string, row.identifier as string);
+        }
+      }
+
+      const result: { phone_number: string; identifiers: { identifier: string; count: number }[] }[] = [];
+      for (const [phone, idents] of byPhone.entries()) {
+        if (idents.size > 1) {
+          result.push({ phone_number: phone, identifiers: [...idents.values()].sort((a, b) => b.count - a.count) });
+        }
+      }
+      return result;
+    }));
+  }
+
   // Standardizes every transaction for a given phone number onto a single chosen customer_name,
   // so one phone number always maps to exactly one customer going forward (regardless of
   // whether older records used the name field, the notes field, or nothing at all).

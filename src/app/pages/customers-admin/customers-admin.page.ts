@@ -11,7 +11,7 @@ import {
 import { addIcons } from 'ionicons';
 import {
   peopleOutline, trashOutline, gitMergeOutline, warningOutline,
-  personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline, lockClosedOutline,
+  personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline, searchOutline,
 } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
@@ -19,7 +19,7 @@ import { CustomerSummary } from '../../models/models';
 import { firstValueFrom, forkJoin } from 'rxjs';
 
 interface DuplicateGroup {
-  reason: 'name' | 'phone';
+  reason: 'name' | 'phone' | 'phone-name';
   label: string;
   customers: CustomerSummary[];
 }
@@ -58,6 +58,21 @@ interface DuplicateGroup {
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
 
+      <!-- Manual scan for same-phone, different-name conflicts -->
+      <div class="scan-bar">
+        <ion-button fill="outline" size="small" [disabled]="scanningPhoneConflicts" (click)="scanPhoneNameConflicts()">
+          @if (scanningPhoneConflicts) {
+            <ion-spinner name="dots" slot="start"></ion-spinner>
+          } @else {
+            <ion-icon name="search-outline" slot="start"></ion-icon>
+          }
+          Scan Same-Phone Conflicts
+        </ion-button>
+        @if (phoneConflictsScanned && phoneNameConflicts.length === 0) {
+          <span class="scan-result-ok">No conflicts found.</span>
+        }
+      </div>
+
       <!-- Duplicates alert section -->
       @if (!loading && duplicates.length > 0) {
         <div class="section-header warn">
@@ -69,11 +84,11 @@ interface DuplicateGroup {
             <ion-card-content>
               <div class="dup-reason">
                 <ion-chip color="warning" size="small">
-                  <ion-label>{{ group.reason === 'name' ? 'Same Name/Notes' : 'Similar Phone' }}</ion-label>
+                  <ion-label>{{ group.reason === 'name' ? 'Same Name/Notes' : group.reason === 'phone' ? 'Similar Phone' : 'Same Phone, Different Name' }}</ion-label>
                 </ion-chip>
                 <span class="dup-label">{{ group.label }}</span>
               </div>
-              @for (c of group.customers; track c.phone_number) {
+              @for (c of group.customers; track $index) {
                 <div class="dup-row">
                   <div class="cust-info">
                     <span class="cust-name">{{ c.customer_name || '(no name)' }}</span>
@@ -173,6 +188,9 @@ interface DuplicateGroup {
 
     .cust-search { padding: 0 8px; }
 
+    .scan-bar { display: flex; align-items: center; gap: 10px; padding: 8px 16px 0; flex-wrap: wrap; }
+    .scan-result-ok { font-size: 0.8rem; opacity: 0.55; }
+
     .cust-list { padding: 4px 8px 16px; display: flex; flex-direction: column; gap: 6px; }
     .cust-card ion-card-content { padding: 10px 12px; }
     .cust-row { display: flex; align-items: flex-start; gap: 4px; }
@@ -201,6 +219,9 @@ interface DuplicateGroup {
 export class CustomersAdminPage implements OnInit, ViewWillEnter {
   customers: CustomerSummary[] = [];
   orphanCustomers: CustomerSummary[] = [];
+  phoneNameConflicts: { phone_number: string; identifiers: { identifier: string; count: number }[] }[] = [];
+  scanningPhoneConflicts = false;
+  phoneConflictsScanned = false;
   loading = true;
   filterTerm = '';
   dismissedGroups = new Set<string>();
@@ -255,6 +276,20 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
       }
     }
 
+    // Same phone number recorded under more than one distinct name/notes identity over time
+    // (e.g. once with the customer's actual name, again with a nickname written in notes).
+    // Pre-computed via getPhoneNameConflicts() and refreshed alongside the customer list.
+    for (const conflict of this.phoneNameConflicts) {
+      const pseudoCustomers: CustomerSummary[] = conflict.identifiers.map(id => ({
+        phone_number: conflict.phone_number,
+        customer_name: id.identifier,
+        visit_count: id.count,
+        total_spent: 0,
+        last_visit: '',
+      }));
+      groups.push({ reason: 'phone-name', label: conflict.phone_number, customers: pseudoCustomers });
+    }
+
     return groups.filter(g => !this.dismissedGroups.has(g.label));
   }
 
@@ -264,7 +299,7 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ peopleOutline, trashOutline, gitMergeOutline, warningOutline, personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline });
+    addIcons({ peopleOutline, trashOutline, gitMergeOutline, warningOutline, personOutline, callOutline, refreshOutline, createOutline, closeCircleOutline, searchOutline });
   }
 
   ngOnInit(): void { }
@@ -294,6 +329,15 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
       this.customers = customers;
       this.orphanCustomers = orphans;
       (event.target as HTMLIonRefresherElement).complete();
+    });
+  }
+
+  scanPhoneNameConflicts(): void {
+    this.scanningPhoneConflicts = true;
+    this.api.getPhoneNameConflicts().subscribe(conflicts => {
+      this.phoneNameConflicts = conflicts;
+      this.phoneConflictsScanned = true;
+      this.scanningPhoneConflicts = false;
     });
   }
 
@@ -424,9 +468,16 @@ export class CustomersAdminPage implements OnInit, ViewWillEnter {
                       return false;
                     }
 
-                    const sources = group.customers.filter(c => c.phone_number !== target.phone_number);
-                    for (const src of sources) {
-                      await firstValueFrom(this.api.mergeCustomers(src.phone_number, target.phone_number, target.customer_name, src.customer_name));
+                    if (group.reason === 'phone-name') {
+                      // All entries share the same phone number — just standardize every transaction
+                      // for that phone onto the chosen name/identifier instead of merging phones.
+                      await firstValueFrom(this.api.unifyPhoneIdentity(target.phone_number, target.customer_name));
+                      this.scanPhoneNameConflicts();
+                    } else {
+                      const sources = group.customers.filter(c => c.phone_number !== target.phone_number);
+                      for (const src of sources) {
+                        await firstValueFrom(this.api.mergeCustomers(src.phone_number, target.phone_number, target.customer_name, src.customer_name));
+                      }
                     }
                     this.loadAll();
                     const toast = await this.toastCtrl.create({ message: 'Records merged successfully.', duration: 2000, color: 'success' });
