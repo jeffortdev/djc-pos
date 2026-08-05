@@ -1,5 +1,6 @@
 import { NgModule } from '@angular/core';
 import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
+import { adminPinGuard } from './guards/admin-pin.guard';
 
 const routes: Routes = [
   {
@@ -20,10 +21,12 @@ const routes: Routes = [
       },
       {
         path: 'services',
+        canActivate: [adminPinGuard],
         loadComponent: () => import('./pages/services-admin/services-admin.page').then(m => m.ServicesAdminPage),
       },
       {
         path: 'products',
+        canActivate: [adminPinGuard],
         loadComponent: () => import('./pages/products-admin/products-admin.page').then(m => m.ProductsAdminPage),
       },
       {
@@ -32,10 +35,12 @@ const routes: Routes = [
       },
       {
         path: 'reports',
+        canActivate: [adminPinGuard],
         loadComponent: () => import('./pages/reports/reports.page').then(m => m.ReportsPage),
       },
       {
         path: 'customers',
+        canActivate: [adminPinGuard],
         loadComponent: () => import('./pages/customers-admin/customers-admin.page').then(m => m.CustomersAdminPage),
       },
       { path: '', redirectTo: 'pos', pathMatch: 'full' },

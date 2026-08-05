@@ -1,5 +1,4 @@
 import { Component, OnInit } from '@angular/core';
-import { ViewWillEnter } from '@ionic/angular';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -12,9 +11,8 @@ import {
 import { addIcons } from 'ionicons';
 import {
   addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline,
-  addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline, swapVerticalOutline, lockClosedOutline
+  addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline, swapVerticalOutline
 } from 'ionicons/icons';
-import { firstValueFrom } from 'rxjs';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { Product, StockEntry } from '../../models/models';
@@ -45,14 +43,12 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
           </div>
         </ion-title>
         <ion-buttons slot="end">
-          @if (authorized) {
-            <ion-button (click)="sortAsc = !sortAsc" aria-label="Toggle sort order">
-              <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
-            </ion-button>
-            <ion-button (click)="startAdd()">
-              <ion-icon name="add-outline" slot="icon-only"></ion-icon>
-            </ion-button>
-          }
+          <ion-button (click)="sortAsc = !sortAsc" aria-label="Toggle sort order">
+            <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
+          </ion-button>
+          <ion-button (click)="startAdd()">
+            <ion-icon name="add-outline" slot="icon-only"></ion-icon>
+          </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -61,17 +57,6 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
       <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
-
-      @if (!authorized) {
-        <div class="locked-state">
-          <ion-icon name="lock-closed-outline"></ion-icon>
-          <p>Manage Products is restricted to admin access.<br>Enter the PIN to continue.</p>
-          <ion-button fill="outline" (click)="promptForAccess()">
-            <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
-            Enter PIN
-          </ion-button>
-        </div>
-      } @else {
 
       <ion-searchbar
         [(ngModel)]="filterTerm"
@@ -245,7 +230,6 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
           </ion-card>
         }
       </div>
-      }
     </ion-content>
   `,
   styles: [`
@@ -299,7 +283,7 @@ const STOCK_REASONS = ['Restock', 'Damaged', 'Correction', 'Returned', 'Other'];
     .hist-reason { font-size: 0.76rem; opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   `],
 })
-export class ProductsAdminPage implements OnInit, ViewWillEnter {
+export class ProductsAdminPage implements OnInit {
   products: Product[] = [];
   loading = true;
   editing = false;
@@ -310,7 +294,6 @@ export class ProductsAdminPage implements OnInit, ViewWillEnter {
   private editId = 0;
   filterTerm = '';
   sortAsc = true;
-  authorized = false;
 
   get filteredProducts(): Product[] {
     const term = this.filterTerm.toLowerCase().trim();
@@ -336,42 +319,10 @@ export class ProductsAdminPage implements OnInit, ViewWillEnter {
     public branding: BrandingService,
   ) {
     addIcons({ addOutline, createOutline, trashOutline, checkmarkOutline, closeOutline,
-               addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline, swapVerticalOutline, lockClosedOutline });
+               addCircleOutline, removeCircleOutline, timeOutline, chevronDownOutline, chevronUpOutline, swapVerticalOutline });
   }
 
   ngOnInit(): void { this.loadProducts(); }
-
-  ionViewWillEnter(): void {
-    this.authorized = false;
-    this.promptForAccess();
-  }
-
-  async promptForAccess(): Promise<void> {
-    const alert = await this.alertCtrl.create({
-      header: 'Admin PIN Required',
-      message: 'Enter the admin PIN to manage products.',
-      backdropDismiss: false,
-      inputs: [{ name: 'pin', type: 'password', placeholder: 'PIN' }],
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        {
-          text: 'OK',
-          handler: async (data) => {
-            const pin = data.pin?.toString() ?? '';
-            const stored = await firstValueFrom(this.api.getSetting('register_pin', '1234'));
-            if (pin !== stored) {
-              const err = await this.alertCtrl.create({ header: 'Incorrect PIN', message: 'The PIN you entered is wrong.', buttons: ['OK'] });
-              await err.present();
-              return false;
-            }
-            this.authorized = true;
-            return true;
-          },
-        },
-      ],
-    });
-    await alert.present();
-  }
 
   loadProducts(): void {
     this.api.getAllProducts().subscribe(products => {

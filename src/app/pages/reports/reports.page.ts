@@ -6,12 +6,11 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent,
   IonCardHeader, IonCardTitle, IonSegment, IonSegmentButton, IonLabel,
   IonIcon, IonSpinner, IonRefresher, IonRefresherContent, IonChip,
-  IonButtons, IonButton, AlertController, ToastController
+  IonButtons, IonButton, ToastController
 } from '@ionic/angular/standalone';
 import { Capacitor } from '@capacitor/core';
 import { addIcons } from 'ionicons';
-import { trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline, hourglassOutline, lockClosedOutline } from 'ionicons/icons';
-import { firstValueFrom } from 'rxjs';
+import { trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline, hourglassOutline } from 'ionicons/icons';
 import { DatabaseService } from '../../services/database.service';
 import { BrandingService } from '../../services/branding.service';
 import { ReportStats, RepeatCustomer } from '../../models/models';
@@ -39,21 +38,19 @@ import type { Sheet } from 'write-excel-file/browser';
           </div>
         </ion-title>
         <ion-buttons slot="end">
-          <ion-button fill="clear" [disabled]="!authorized" (click)="exportReport()">
+          <ion-button fill="clear" (click)="exportReport()">
             <ion-icon slot="icon-only" [icon]="downloadOutline"></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
-      @if (authorized) {
-        <ion-toolbar color="primary">
-          <ion-segment [(ngModel)]="period" (ionChange)="onFilterChange()">
-            <ion-segment-button value="today"><ion-label>Today</ion-label></ion-segment-button>
-            <ion-segment-button value="week"><ion-label>Week</ion-label></ion-segment-button>
-            <ion-segment-button value="month"><ion-label>Month</ion-label></ion-segment-button>
-            <ion-segment-button value="custom"><ion-label>Custom</ion-label></ion-segment-button>
-          </ion-segment>
-        </ion-toolbar>
-      }
+      <ion-toolbar color="primary">
+        <ion-segment [(ngModel)]="period" (ionChange)="onFilterChange()">
+          <ion-segment-button value="today"><ion-label>Today</ion-label></ion-segment-button>
+          <ion-segment-button value="week"><ion-label>Week</ion-label></ion-segment-button>
+          <ion-segment-button value="month"><ion-label>Month</ion-label></ion-segment-button>
+          <ion-segment-button value="custom"><ion-label>Custom</ion-label></ion-segment-button>
+        </ion-segment>
+      </ion-toolbar>
     </ion-header>
 
     <ion-content>
@@ -61,7 +58,6 @@ import type { Sheet } from 'write-excel-file/browser';
         <ion-refresher-content></ion-refresher-content>
       </ion-refresher>
 
-      @if (authorized) {
       <!-- Custom date range picker -->
       @if (period === 'custom') {
         <div class="date-range-bar">
@@ -324,23 +320,10 @@ import type { Sheet } from 'write-excel-file/browser';
           </ion-card-content>
         </ion-card>
       }
-      } @else {
-        <div class="locked-state">
-          <ion-icon name="lock-closed-outline"></ion-icon>
-          <p>Reports are restricted to admin access.<br>Enter the PIN to continue.</p>
-          <ion-button fill="outline" (click)="promptForAccess()">
-            <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
-            Enter PIN
-          </ion-button>
-        </div>
-      }
     </ion-content>
   `,
   styles: [`
     .loading-center { display: flex; justify-content: center; align-items: center; height: 60vh; }
-    .locked-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; gap: 12px; padding: 24px; text-align: center; opacity: 0.8; }
-    .locked-state ion-icon { font-size: 3rem; opacity: 0.5; }
-    .locked-state p { opacity: 0.6; margin: 0; }
 
     /* Date range bar */
     .date-range-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px 4px; }
@@ -433,7 +416,6 @@ export class ReportsPage implements ViewWillEnter {
   repeatCustomerLimit = 10;
   repeatCustomerPeriod: 'week' | 'month' | 'year' = 'year';
   downloadOutline = downloadOutline;
-  authorized = false;
 
   readonly paymentMethods = [
     { value: 'all',   label: 'All' },
@@ -455,44 +437,14 @@ export class ReportsPage implements ViewWillEnter {
 
   constructor(
     private api: DatabaseService,
-    private alertCtrl: AlertController,
     private toastCtrl: ToastController,
     public branding: BrandingService,
   ) {
-    addIcons({ trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline, hourglassOutline, lockClosedOutline });
+    addIcons({ trendingUpOutline, trendingDownOutline, removeOutline, downloadOutline, hourglassOutline });
   }
 
   ionViewWillEnter(): void {
-    this.authorized = false;
-    this.promptForAccess();
-  }
-
-  async promptForAccess(): Promise<void> {
-    const alert = await this.alertCtrl.create({
-      header: 'Admin PIN Required',
-      message: 'Enter the admin PIN to view Reports.',
-      backdropDismiss: false,
-      inputs: [{ name: 'pin', type: 'password', placeholder: 'PIN' }],
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        {
-          text: 'OK',
-          handler: async (data) => {
-            const pin = data.pin?.toString() ?? '';
-            const stored = await firstValueFrom(this.api.getSetting('register_pin', '1234'));
-            if (pin !== stored) {
-              const err = await this.alertCtrl.create({ header: 'Incorrect PIN', message: 'The PIN you entered is wrong.', buttons: ['OK'] });
-              await err.present();
-              return false;
-            }
-            this.authorized = true;
-            this.load();
-            return true;
-          },
-        },
-      ],
-    });
-    await alert.present();
+    this.load();
   }
 
   get periodLabel(): string {
