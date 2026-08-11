@@ -55,6 +55,7 @@ export interface Transaction {
   notes: string;
   notify_count?: number;
   status?: 'pending' | 'paid' | 'picked_up';
+  personel?: string;
   items?: TransactionItem[];
 }
 
@@ -140,5 +141,6 @@ export interface ReportStats {
     status: 'ok' | 'warning' | 'must-buy' | 'no-sales';
   }[];
   paymentBreakdown: { method: string; revenue: number; count: number }[];
+  personnelBreakdown: { personel: string; revenue: number; count: number }[];
   unpaid: { count: number; total: number };
 }

@@ -45,6 +45,7 @@ import { BrandingService } from '../../../services/branding.service';
           @if (tx.customer_name) {
             <p class="receipt-customer">{{ tx.customer_name }}</p>
           }
+          <p class="receipt-personel">Personnel: {{ tx.personel || 'Personel' }}</p>
         </div>
 
         <div class="divider"></div>
@@ -114,6 +115,7 @@ import { BrandingService } from '../../../services/branding.service';
     .receipt-header { text-align: center; padding: 8px 0 16px; }
     .receipt-date, .receipt-id { margin: 2px 0; font-size: 0.8rem; opacity: 0.6; }
     .receipt-customer { margin: 6px 0 0; font-size: 0.95rem; font-weight: 600; }
+    .receipt-personel { margin: 2px 0 0; font-size: 0.78rem; opacity: 0.6; }
     .divider { height: 1px; background: var(--ion-border-color); margin: 8px 0; }
     .receipt-items { padding: 12px 0; display: flex; flex-direction: column; gap: 8px; }
     .receipt-item { display: flex; align-items: center; justify-content: space-between; }

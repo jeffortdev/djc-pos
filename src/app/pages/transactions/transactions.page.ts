@@ -50,7 +50,7 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
         [(ngModel)]="searchQuery"
         (ionInput)="onSearch($event)"
         (ionClear)="clearSearch()"
-        placeholder="Search by name, phone, notes, ID…"
+        placeholder="Search by name, phone, personnel, notes, ID…"
         debounce="300"
         class="history-search"
       ></ion-searchbar>
@@ -145,6 +145,7 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
                       <span class="tx-id"># {{ tx.id }}</span>
                       <span class="tx-date">{{ tx.created_at | date:'medium' }}</span>
                       @if (tx.customer_name) { <span class="tx-customer">{{ tx.customer_name }}</span> }
+                      <span class="tx-personel">{{ tx.personel || 'Personel' }}</span>
                       @if (tx.notes) { <span class="tx-notes">{{ tx.notes }}</span> }
                     </div>
                     <div class="tx-right">
@@ -289,6 +290,7 @@ import { ReceiptModalComponent } from '../pos/receipt-modal/receipt-modal.compon
     .tx-date { font-size: 0.78rem; opacity: 0.6; }
     .tx-notes { font-size: 0.78rem; font-style: italic; opacity: 0.7; }
     .tx-customer { font-size: 0.85rem; font-weight: 600; }
+    .tx-personel { font-size: 0.78rem; opacity: 0.65; }
     .tx-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     .tx-total { font-weight: 700; font-size: 1rem; color: var(--ion-color-primary); }
     .neg-amount { color: var(--ion-color-danger) !important; }
@@ -324,6 +326,7 @@ export class TransactionsPage implements OnInit, ViewWillEnter {
         (tx.customer_name?.toLowerCase().includes(q)) ||
         (tx.phone_number?.toLowerCase().includes(q)) ||
         (tx.notes?.toLowerCase().includes(q)) ||
+        (tx.personel?.toLowerCase().includes(q)) ||
         String(tx.id).includes(q);
 
       const status = tx.status ?? 'paid';

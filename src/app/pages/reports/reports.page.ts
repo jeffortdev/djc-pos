@@ -129,6 +129,31 @@ import type { Sheet } from 'write-excel-file/browser';
           </ion-card>
         }
 
+        <!-- Personnel breakdown (always unfiltered — shows full split) -->
+        @if (data.personnelBreakdown.length > 0) {
+          <ion-card>
+            <ion-card-header>
+              <ion-card-title>Sales by Personnel</ion-card-title>
+            </ion-card-header>
+            <ion-card-content>
+              <div class="pm-list">
+                @for (p of data.personnelBreakdown; track p.personel) {
+                  <div class="pm-row">
+                    <ion-chip color="tertiary" size="small">
+                      <ion-label>{{ p.personel }}</ion-label>
+                    </ion-chip>
+                    <div class="pm-bar-wrap">
+                      <div class="pm-bar" [style.width.%]="personelBarWidth(p.revenue)" style="background: var(--ion-color-tertiary)"></div>
+                    </div>
+                    <span class="pm-count">{{ p.count }}x</span>
+                    <span class="pm-rev">{{ p.revenue | currency:'PHP':'symbol':'1.2-2' }}</span>
+                  </div>
+                }
+              </div>
+            </ion-card-content>
+          </ion-card>
+        }
+
         <!-- Comparison cards -->
         <ion-card>
           <ion-card-header>
@@ -500,6 +525,12 @@ export class ReportsPage implements ViewWillEnter {
     return method === 'cash' ? 'var(--ion-color-success)' : method === 'card' ? 'var(--ion-color-primary)' : 'var(--ion-color-warning)';
   }
 
+  personelBarWidth(revenue: number): number {
+    if (!this.data || !this.data.personnelBreakdown.length) return 0;
+    const max = Math.max(...this.data.personnelBreakdown.map(p => p.revenue), 1);
+    return (revenue / max) * 100;
+  }
+
   pct(curr: number, prev: number): number {
     if (prev === 0) return curr > 0 ? 100 : 0;
     return parseFloat(((curr - prev) / prev * 100).toFixed(1));
@@ -549,6 +580,13 @@ export class ReportsPage implements ViewWillEnter {
           data: [
             ['Method', 'Revenue', 'Count'],
             ...d.paymentBreakdown.map(p => [p.method, p.revenue, p.count]),
+          ],
+        },
+        {
+          sheet: 'Personnel Breakdown',
+          data: [
+            ['Personnel', 'Revenue', 'Count'],
+            ...d.personnelBreakdown.map(p => [p.personel, p.revenue, p.count]),
           ],
         },
         {

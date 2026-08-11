@@ -92,7 +92,7 @@ All interfaces are defined in [`src/app/models/models.ts`](src/app/models/models
 The single data-access layer for the entire app.
 
 - **Storage target**: Uses `@capacitor-community/sqlite` on native Android/iOS. Falls back to `localStorage` in the browser (dev mode).
-- **Schema migrations**: Runs at app startup — adds columns (`phone_number`, `notify_count`, `customer_name`, `status`, `item_type`) and tables (`stock_history`, `loyalty_redemptions`) incrementally, so existing data is never lost.
+- **Schema migrations**: Runs at app startup — adds columns (`phone_number`, `notify_count`, `customer_name`, `status`, `item_type`, `personel`) and tables (`stock_history`, `loyalty_redemptions`) incrementally, so existing data is never lost.
 - **Key capabilities**:
   - Services CRUD, Products CRUD, Stock adjustments
   - Transaction lifecycle: create → accept payment → mark picked up
@@ -383,7 +383,7 @@ Every transaction passes through a defined state machine. Transitions are enforc
 
 | Table | Key Columns |
 |---|---|
-| `transactions` | `id`, `created_at`, `subtotal`, `tax`, `total`, `payment_method`, `amount_tendered`, `change_due`, `customer_name`, `phone_number`, `notes`, `notify_count`, `status` |
+| `transactions` | `id`, `created_at`, `subtotal`, `tax`, `total`, `payment_method`, `amount_tendered`, `change_due`, `customer_name`, `phone_number`, `notes`, `notify_count`, `status`, `personel` |
 | `transaction_items` | `id`, `transaction_id`, `service_id`, `service_name`, `unit`, `price`, `quantity`, `subtotal`, `item_type` |
 | `services` | `id`, `name`, `price`, `category`, `unit`, `active`, `sort_order`, `loyalty_tracking` |
 | `products` | `id`, `name`, `type`, `cost`, `price`, `stock`, `active`, `sort_order` |

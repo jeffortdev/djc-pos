@@ -41,7 +41,8 @@ const SCHEMA = `
     phone_number    TEXT    NOT NULL DEFAULT '',
     notify_count    INTEGER NOT NULL DEFAULT 0,
     notes           TEXT    NOT NULL DEFAULT '',
-    status          TEXT    NOT NULL DEFAULT 'paid'
+    status          TEXT    NOT NULL DEFAULT 'paid',
+    personel        TEXT    NOT NULL DEFAULT ''
   );
 
   CREATE TABLE IF NOT EXISTS transaction_items (
@@ -341,6 +342,10 @@ export class DatabaseService {
     const hasStatus = (cols.values ?? []).some((c: { name: string }) => c.name === 'status');
     if (!hasStatus) {
       await this.sqliteStore!.run("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'paid'");
+    }
+    const hasPersonel = (cols.values ?? []).some((c: { name: string }) => c.name === 'personel');
+    if (!hasPersonel) {
+      await this.sqliteStore!.run("ALTER TABLE transactions ADD COLUMN personel TEXT NOT NULL DEFAULT ''");
     }
 
     // Migrate: add loyalty_tracking column to services if missing, then ensure all rows are set to 1
@@ -650,7 +655,8 @@ export class DatabaseService {
             t.id.toString().includes(q) ||
             (t.customer_name ?? '').toLowerCase().includes(q) ||
             (t.phone_number ?? '').toLowerCase().includes(q) ||
-            (t.notes ?? '').toLowerCase().includes(q)
+            (t.notes ?? '').toLowerCase().includes(q) ||
+            (t.personel ?? '').toLowerCase().includes(q)
           )
           .sort((a, b) => b.created_at.localeCompare(a.created_at));
       }
@@ -660,9 +666,10 @@ export class DatabaseService {
          WHERE LOWER(COALESCE(customer_name,'')) LIKE ?
             OR LOWER(COALESCE(phone_number,'')) LIKE ?
             OR LOWER(COALESCE(notes,'')) LIKE ?
+            OR LOWER(COALESCE(personel,'')) LIKE ?
             OR CAST(id AS TEXT) LIKE ?
          ORDER BY created_at DESC`,
-        [like, like, like, like]
+        [like, like, like, like, like]
       );
       return (r.values ?? []) as Transaction[];
     }));
@@ -1150,9 +1157,10 @@ export class DatabaseService {
     phone_number?: string;
     notes?: string;
     status?: string;
+    personel?: string;
   }): Observable<Transaction> {
     return from(this.ready.then(async () => {
-      const { items, payment_method, amount_tendered, notes, phone_number, customer_name } = payload;
+      const { items, payment_method, amount_tendered, notes, phone_number, customer_name, personel } = payload;
       const txStatus = payload.status ?? 'paid';
       const subtotal = parseFloat(items.reduce((s, i) => s + i.price * i.quantity, 0).toFixed(2));
       const total = subtotal;
@@ -1167,7 +1175,7 @@ export class DatabaseService {
           payment_method: payment_method ?? 'cash',
           amount_tendered: amount_tendered ?? total,
           change_due, customer_name: customer_name ?? '', phone_number: phone_number ?? '', notes: notes ?? '',
-          status: txStatus as Transaction['status'],
+          status: txStatus as Transaction['status'], personel: personel ?? '',
           items: items.map((item, i) => ({
             id: i + 1, transaction_id: id,
             service_id: item.service_id, service_name: item.service_name,
@@ -1182,9 +1190,9 @@ export class DatabaseService {
       }
 
       const txR = await this.sqliteStore!.run(
-        `INSERT INTO transactions (subtotal, tax, total, payment_method, amount_tendered, change_due, customer_name, phone_number, notes, status)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        [subtotal, 0, total, payment_method ?? 'cash', amount_tendered ?? total, change_due, customer_name ?? '', phone_number ?? '', notes ?? '', txStatus]
+        `INSERT INTO transactions (subtotal, tax, total, payment_method, amount_tendered, change_due, customer_name, phone_number, notes, status, personel)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [subtotal, 0, total, payment_method ?? 'cash', amount_tendered ?? total, change_due, customer_name ?? '', phone_number ?? '', notes ?? '', txStatus, personel ?? '']
       );
       const txId = txR.changes?.lastId ?? 0;
       for (const item of items) {
@@ -1414,11 +1422,11 @@ export class DatabaseService {
 
       for (const transaction of backup.transactions) {
         await this.sqliteStore!.run(
-          'INSERT INTO transactions (id, created_at, subtotal, tax, total, payment_method, amount_tendered, change_due, phone_number, notify_count, notes, customer_name, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          'INSERT INTO transactions (id, created_at, subtotal, tax, total, payment_method, amount_tendered, change_due, phone_number, notify_count, notes, customer_name, status, personel) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           [transaction.id, transaction.created_at, transaction.subtotal, transaction.tax, transaction.total,
            transaction.payment_method, transaction.amount_tendered, transaction.change_due,
            transaction.phone_number ?? '', transaction.notify_count ?? 0, transaction.notes,
-           transaction.customer_name ?? '', (transaction as any).status ?? 'paid']
+           transaction.customer_name ?? '', (transaction as any).status ?? 'paid', transaction.personel ?? '']
         );
 
         for (const item of transaction.items ?? []) {
@@ -1695,6 +1703,15 @@ export class DatabaseService {
       pmMap[tx.payment_method].count += 1;
     }
 
+    // Personnel breakdown — paid transactions only, blank personel falls back to 'Personel'
+    const personelMap: Record<string, { personel: string; revenue: number; count: number }> = {};
+    for (const tx of allCurrTx) {
+      const label = tx.personel?.trim() || 'Personel';
+      if (!personelMap[label]) personelMap[label] = { personel: label, revenue: 0, count: 0 };
+      personelMap[label].revenue += tx.total;
+      personelMap[label].count += 1;
+    }
+
     return {
       current:  { revenue: currRev, count: currTx.length, avg: currTx.length ? currRev / currTx.length : 0 },
       previous: { revenue: prevRev, count: prevTx.length, avg: prevTx.length ? prevRev / prevTx.length : 0 },
@@ -1703,6 +1720,7 @@ export class DatabaseService {
       topProducts: Object.values(prodMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5),
       stockLevels,
       paymentBreakdown: Object.values(pmMap).sort((a, b) => b.revenue - a.revenue),
+      personnelBreakdown: Object.values(personelMap).sort((a, b) => b.revenue - a.revenue),
       unpaid: { count: unpaidTx.length, total: sumRev(unpaidTx) },
     };
   }
@@ -1762,7 +1780,7 @@ export class DatabaseService {
         ? `SELECT strftime('%d',created_at) AS day, COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count FROM transactions WHERE ${currWhere} GROUP BY day ORDER BY day`
         : `SELECT date(created_at) AS dt, COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count FROM transactions WHERE ${currWhere} GROUP BY dt ORDER BY dt`;
 
-    const [currR, prevR, bR, topServicesR, topProductsR, stockR, pmR, unpaidR] = await Promise.all([
+    const [currR, prevR, bR, topServicesR, topProductsR, stockR, pmR, personelR, unpaidR] = await Promise.all([
       this.sqliteStore!.query(`SELECT COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count, COALESCE(AVG(total),0) AS avg FROM transactions WHERE ${currWhere}`),
       this.sqliteStore!.query(`SELECT COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count, COALESCE(AVG(total),0) AS avg FROM transactions WHERE ${prevWhere}`),
       this.sqliteStore!.query(breakdownSQL),
@@ -1770,6 +1788,7 @@ export class DatabaseService {
       this.sqliteStore!.query(`SELECT ti.service_name AS product_name, SUM(ti.quantity) AS quantity, SUM(ti.subtotal) AS revenue FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id WHERE ${topWhere} AND ti.item_type='product' GROUP BY ti.service_name ORDER BY revenue DESC LIMIT 5`),
       this.sqliteStore!.query(`SELECT p.name AS product_name, p.stock, p.price, p.cost, COALESCE(SUM(ti.quantity),0) AS sold_quantity FROM products p LEFT JOIN transaction_items ti ON ti.service_name = p.name AND ti.item_type='product' LEFT JOIN transactions t ON t.id = ti.transaction_id AND ${topWhere} GROUP BY p.name ORDER BY p.stock ASC, p.name ASC`),
       this.sqliteStore!.query(`SELECT payment_method AS method, COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count FROM transactions WHERE ${pmBaseWhere} GROUP BY payment_method ORDER BY revenue DESC`),
+      this.sqliteStore!.query(`SELECT COALESCE(NULLIF(TRIM(personel),''),'Personel') AS personel, COALESCE(SUM(total),0) AS revenue, COUNT(*) AS count FROM transactions WHERE ${pmBaseWhere} GROUP BY personel ORDER BY revenue DESC`),
       this.sqliteStore!.query(`SELECT COUNT(*) AS count, COALESCE(SUM(total),0) AS total FROM transactions WHERE ${periodOnlyWhere} AND status = 'pending'`),
     ]);
 
@@ -1845,6 +1864,7 @@ export class DatabaseService {
       topProducts: (topProductsR.values ?? []) as any,
       stockLevels,
       paymentBreakdown: (pmR.values ?? []) as any,
+      personnelBreakdown: (personelR.values ?? []) as any,
       unpaid: { count: unpaidR.values?.[0]?.count ?? 0, total: unpaidR.values?.[0]?.total ?? 0 },
     };
   }

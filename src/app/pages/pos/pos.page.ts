@@ -591,6 +591,7 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
         allowPayLater: !this.editTx,
         prefillCustomerName: this.editTx?.customer_name ?? '',
         prefillPhone: this.editTx?.phone_number ?? '',
+        prefillPersonel: this.editTx?.personel ?? '',
       },
     });
     await modal.present();
@@ -631,6 +632,7 @@ export class PosPage implements OnInit, OnDestroy, ViewWillEnter {
       customer_name: data.result.customer_name,
       phone_number: data.result.phone_number,
       notes: data.result.notes,
+      personel: data.result.personel,
       status: data.payLater ? 'pending' : 'paid',
     }).subscribe({
       next: async tx => {

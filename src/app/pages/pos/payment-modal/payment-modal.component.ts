@@ -23,6 +23,7 @@ export interface PaymentResult {
   customer_name: string;
   phone_number: string;
   notes: string;
+  personel: string;
   mark_picked_up?: boolean;
 }
 
@@ -56,6 +57,18 @@ export interface PaymentResult {
     </ion-header>
 
     <ion-content>
+      <!-- Personnel — who is handling this transaction -->
+      <ion-list>
+        <ion-item>
+          <ion-label position="stacked">Personnel</ion-label>
+          <ion-input
+            [(ngModel)]="personel"
+            placeholder="e.g. Juan dela Cruz"
+            autocomplete="off">
+          </ion-input>
+        </ion-item>
+      </ion-list>
+
       <!-- Customer name — first field with autocomplete -->
       <div class="name-wrap">
         <ion-list>
@@ -201,6 +214,7 @@ export class PaymentModalComponent implements OnInit {
   @Input() allowPayLater = true;
   @Input() prefillCustomerName = '';
   @Input() prefillPhone = '';
+  @Input() prefillPersonel = '';
   @Input() showPickupOption = false;
 
   method = 'cash';
@@ -208,6 +222,7 @@ export class PaymentModalComponent implements OnInit {
   customerName = '';
   phoneNumber = '';
   notes = '';
+  personel = '';
   markPickedUpNow = false;
   suggestions: { name: string; phone_number: string }[] = [];
 
@@ -224,6 +239,7 @@ export class PaymentModalComponent implements OnInit {
     this.tendered = this.total;
     if (this.prefillCustomerName) this.customerName = this.prefillCustomerName;
     if (this.prefillPhone) this.phoneNumber = this.prefillPhone;
+    if (this.prefillPersonel) this.personel = this.prefillPersonel;
   }
 
   onNameChange(value: string): void {
@@ -362,6 +378,7 @@ export class PaymentModalComponent implements OnInit {
       customer_name: this.customerName,
       phone_number: this.phoneNumber,
       notes: this.notes,
+      personel: this.personel,
       mark_picked_up: this.showPickupOption ? this.markPickedUpNow : false,
     };
     this.modalCtrl.dismiss({ confirmed: true, result });
@@ -377,6 +394,7 @@ export class PaymentModalComponent implements OnInit {
         customer_name: this.customerName,
         phone_number: this.phoneNumber,
         notes: this.notes,
+        personel: this.personel,
       },
     });
   }
