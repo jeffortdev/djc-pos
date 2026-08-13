@@ -56,6 +56,7 @@ export class PaymentModalComponent implements OnInit {
   personel = '';
   markPickedUpNow = false;
   suggestions: { name: string; phone_number: string }[] = [];
+  personelSuggestions: string[] = [];
 
   constructor(
     private modalCtrl: ModalController,
@@ -70,7 +71,13 @@ export class PaymentModalComponent implements OnInit {
     this.tendered = this.total;
     if (this.prefillCustomerName) this.customerName = this.prefillCustomerName;
     if (this.prefillPhone) this.phoneNumber = this.prefillPhone;
-    if (this.prefillPersonel) this.personel = this.prefillPersonel;
+    if (this.prefillPersonel) {
+      this.personel = this.prefillPersonel;
+    } else {
+      this.db.getLatestPersonel().subscribe(name => {
+        if (name) this.personel = name;
+      });
+    }
   }
 
   onNameChange(value: string): void {
@@ -82,6 +89,22 @@ export class PaymentModalComponent implements OnInit {
     this.db.searchCustomers(q).subscribe(results => {
       this.suggestions = results;
     });
+  }
+
+  onPersonelChange(value: string): void {
+    const q = (value ?? '').trim();
+    if (q.length < 1) {
+      this.personelSuggestions = [];
+      return;
+    }
+    this.db.searchPersonel(q).subscribe(results => {
+      this.personelSuggestions = results;
+    });
+  }
+
+  selectPersonelSuggestion(name: string): void {
+    this.personel = name;
+    this.personelSuggestions = [];
   }
 
   async onPhoneBlur(): Promise<void> {

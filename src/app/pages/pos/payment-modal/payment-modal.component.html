@@ -17,44 +17,6 @@
 </ion-header>
 
 <ion-content>
-  <!-- Personnel — who is handling this transaction -->
-  <ion-list>
-    <ion-item>
-      <ion-label position="stacked">Personnel</ion-label>
-      <ion-input
-        [(ngModel)]="personel"
-        placeholder="e.g. Juan dela Cruz"
-        autocomplete="off">
-      </ion-input>
-    </ion-item>
-  </ion-list>
-
-  <!-- Customer name — first field with autocomplete -->
-  <div class="name-wrap">
-    <ion-list>
-      <ion-item>
-        <ion-label position="stacked">Customer Name (optional)</ion-label>
-        <ion-input
-          [(ngModel)]="customerName"
-          (ngModelChange)="onNameChange($event)"
-          (ionBlur)="suggestions = []"
-          placeholder="e.g. Juan dela Cruz"
-          autocomplete="off">
-        </ion-input>
-      </ion-item>
-    </ion-list>
-    @if (suggestions.length > 0) {
-      <div class="suggestions">
-        @for (s of suggestions; track s.name) {
-          <div class="suggestion-item" (mousedown)="selectSuggestion(s)">
-            <span class="s-name">{{ s.name }}</span>
-            @if (s.phone_number) { <span class="s-phone">{{ s.phone_number }}</span> }
-          </div>
-        }
-      </div>
-    }
-  </div>
-
   <!-- Readonly order summary -->
   <ion-list>
     @for (item of cart; track item.service_id) {
@@ -113,6 +75,57 @@
       <div class="insufficient">Insufficient amount</div>
     }
   }
+
+  <!-- Personnel — who is handling this transaction, with autocomplete -->
+  <div class="name-wrap">
+    <ion-list>
+      <ion-item>
+        <ion-label position="stacked">Personnel</ion-label>
+        <ion-input
+          [(ngModel)]="personel"
+          (ngModelChange)="onPersonelChange($event)"
+          (ionBlur)="personelSuggestions = []"
+          placeholder="e.g. Juan dela Cruz"
+          autocomplete="off">
+        </ion-input>
+      </ion-item>
+    </ion-list>
+    @if (personelSuggestions.length > 0) {
+      <div class="suggestions">
+        @for (p of personelSuggestions; track p) {
+          <div class="suggestion-item" (mousedown)="selectPersonelSuggestion(p)">
+            <span class="s-name">{{ p }}</span>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- Customer name — with autocomplete -->
+  <div class="name-wrap">
+    <ion-list>
+      <ion-item>
+        <ion-label position="stacked">Customer Name (optional)</ion-label>
+        <ion-input
+          [(ngModel)]="customerName"
+          (ngModelChange)="onNameChange($event)"
+          (ionBlur)="suggestions = []"
+          placeholder="e.g. Juan dela Cruz"
+          autocomplete="off">
+        </ion-input>
+      </ion-item>
+    </ion-list>
+    @if (suggestions.length > 0) {
+      <div class="suggestions">
+        @for (s of suggestions; track s.name) {
+          <div class="suggestion-item" (mousedown)="selectSuggestion(s)">
+            <span class="s-name">{{ s.name }}</span>
+            @if (s.phone_number) { <span class="s-phone">{{ s.phone_number }}</span> }
+          </div>
+        }
+      </div>
+    }
+  </div>
 
   <ion-list>
     <ion-item>

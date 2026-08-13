@@ -873,6 +873,66 @@ export class DatabaseService {
     }));
   }
 
+  /** Returns distinct previously-used personel names matching the query, most recent first. */
+  searchPersonel(query: string): Observable<string[]> {
+    return from(this.ready.then(async () => {
+      const q = query.toLowerCase();
+      if (!this.isNative) {
+        const seen = new Map<string, string>();
+        const all = [...this.local.getTransactions()]
+          .sort((a, b) => b.created_at.localeCompare(a.created_at));
+        for (const tx of all) {
+          const name = (tx.personel ?? '').trim();
+          if (!name) continue;
+          const key = name.toLowerCase();
+          if (key.includes(q) && !seen.has(key)) {
+            seen.set(key, name);
+          }
+        }
+        return Array.from(seen.values()).slice(0, 8);
+      }
+      try {
+        const r = await this.sqliteStore!.query(
+          `SELECT personel AS name
+           FROM transactions t1
+           WHERE NULLIF(personel,'') IS NOT NULL
+             AND LOWER(personel) LIKE ?
+             AND created_at = (
+               SELECT MAX(t2.created_at) FROM transactions t2
+               WHERE LOWER(t2.personel) = LOWER(t1.personel)
+             )
+           ORDER BY name
+           LIMIT 8`,
+          [`%${q}%`]
+        );
+        return (r.values ?? []).map((row: any) => row.name as string);
+      } catch {
+        // Column not yet present on a very old schema — return empty gracefully
+        return [];
+      }
+    }));
+  }
+
+  /** Returns the most recently used personel name across all transactions, or '' if none. */
+  getLatestPersonel(): Observable<string> {
+    return from(this.ready.then(async () => {
+      if (!this.isNative) {
+        const tx = [...this.local.getTransactions()]
+          .filter(t => !!(t.personel ?? '').trim())
+          .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+        return (tx?.personel ?? '').trim();
+      }
+      try {
+        const r = await this.sqliteStore!.query(
+          `SELECT personel FROM transactions
+           WHERE NULLIF(personel,'') IS NOT NULL
+           ORDER BY created_at DESC LIMIT 1`
+        );
+        return ((r.values?.[0]?.personel ?? '') as string).trim();
+      } catch { return ''; }
+    }));
+  }
+
   getAllCustomers(): Observable<import('../models/models').CustomerSummary[]> {
     return from(this.ready.then(async () => {
       if (!this.isNative) {
