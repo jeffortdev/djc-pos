@@ -1,0 +1,319 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>
+      <div class="title-inner-wrap">
+        <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+        @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+          <span class="header-title">{{ branding.appTitle$ | async }}</span>
+        }
+      </div>
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" (click)="exportReport()">
+        <ion-icon slot="icon-only" [icon]="downloadOutline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <ion-toolbar color="primary">
+    <ion-segment [(ngModel)]="period" (ionChange)="onFilterChange()">
+      <ion-segment-button value="today"><ion-label>Today</ion-label></ion-segment-button>
+      <ion-segment-button value="week"><ion-label>Week</ion-label></ion-segment-button>
+      <ion-segment-button value="month"><ion-label>Month</ion-label></ion-segment-button>
+      <ion-segment-button value="custom"><ion-label>Custom</ion-label></ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Custom date range picker -->
+  @if (period === 'custom') {
+    <div class="date-range-bar">
+      <div class="date-field">
+        <label>From</label>
+        <input type="date" class="date-input" [(ngModel)]="dateFrom" (change)="onFilterChange()">
+      </div>
+      <span class="date-arrow">→</span>
+      <div class="date-field">
+        <label>To</label>
+        <input type="date" class="date-input" [(ngModel)]="dateTo" (change)="onFilterChange()">
+      </div>
+    </div>
+  }
+
+  <!-- Payment method filter chips -->
+  <div class="filter-chips">
+    @for (m of paymentMethods; track m.value) {
+      <ion-chip
+        [color]="paymentFilter === m.value ? 'primary' : 'medium'"
+        (click)="setPaymentFilter(m.value)">
+        <ion-label>{{ m.label }}</ion-label>
+      </ion-chip>
+    }
+  </div>
+
+  @if (loading) {
+    <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
+  } @else if (data) {
+
+    <!-- Unpaid -->
+    @if (data.unpaid.count > 0) {
+      <ion-card class="unpaid-card">
+        <ion-card-content>
+          <div class="unpaid-row">
+            <ion-icon name="hourglass-outline" color="warning" class="unpaid-icon"></ion-icon>
+            <div class="unpaid-info">
+              <span class="unpaid-label">Unpaid this period</span>
+              <span class="unpaid-count">{{ data.unpaid.count }} order{{ data.unpaid.count !== 1 ? 's' : '' }}</span>
+            </div>
+            <span class="unpaid-total">{{ data.unpaid.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    }
+
+    <!-- Payment method breakdown (always unfiltered — shows full split) -->
+    @if (data.paymentBreakdown.length > 0) {
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>Payment Split</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <div class="pm-list">
+            @for (pm of data.paymentBreakdown; track pm.method) {
+              <div class="pm-row">
+                <ion-chip [color]="pmColor(pm.method)" size="small">
+                  <ion-label>{{ pm.method | titlecase }}</ion-label>
+                </ion-chip>
+                <div class="pm-bar-wrap">
+                  <div class="pm-bar" [style.width.%]="pmBarWidth(pm.revenue)" [style.background]="pmBarColor(pm.method)"></div>
+                </div>
+                <span class="pm-count">{{ pm.count }}x</span>
+                <span class="pm-rev">{{ pm.revenue | currency:'PHP':'symbol':'1.2-2' }}</span>
+              </div>
+            }
+          </div>
+        </ion-card-content>
+      </ion-card>
+    }
+
+    <!-- Personnel breakdown (always unfiltered — shows full split) -->
+    @if (data.personnelBreakdown.length > 0) {
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>Sales by Personnel</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <div class="pm-list">
+            @for (p of data.personnelBreakdown; track p.personel) {
+              <div class="pm-row">
+                <ion-chip color="tertiary" size="small">
+                  <ion-label>{{ p.personel }}</ion-label>
+                </ion-chip>
+                <div class="pm-bar-wrap">
+                  <div class="pm-bar" [style.width.%]="personelBarWidth(p.revenue)" style="background: var(--ion-color-tertiary)"></div>
+                </div>
+                <span class="pm-count">{{ p.count }}x</span>
+                <span class="pm-rev">{{ p.revenue | currency:'PHP':'symbol':'1.2-2' }}</span>
+              </div>
+            }
+          </div>
+        </ion-card-content>
+      </ion-card>
+    }
+
+    <!-- Comparison cards -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>vs Previous {{ periodLabel }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <div class="cmp-grid">
+          <div class="cmp-item">
+            <div class="cmp-curr">{{ data.current.revenue | currency:'PHP':'symbol':'1.2-2' }}</div>
+            <div class="cmp-prev">prev: {{ data.previous.revenue | currency:'PHP':'symbol':'1.2-2' }}</div>
+            <div class="cmp-badge"
+                 [class.up]="pct(data.current.revenue, data.previous.revenue) >= 0"
+                 [class.down]="pct(data.current.revenue, data.previous.revenue) < 0">
+              <ion-icon [name]="pctIcon(data.current.revenue, data.previous.revenue)"></ion-icon>
+              {{ pctLabel(data.current.revenue, data.previous.revenue) }}
+            </div>
+            <div class="cmp-lbl">Revenue</div>
+          </div>
+          <div class="cmp-item">
+            <div class="cmp-curr">{{ data.current.count }}</div>
+            <div class="cmp-prev">prev: {{ data.previous.count }}</div>
+            <div class="cmp-badge"
+                 [class.up]="pct(data.current.count, data.previous.count) >= 0"
+                 [class.down]="pct(data.current.count, data.previous.count) < 0">
+              <ion-icon [name]="pctIcon(data.current.count, data.previous.count)"></ion-icon>
+              {{ pctLabel(data.current.count, data.previous.count) }}
+            </div>
+            <div class="cmp-lbl">Transactions</div>
+          </div>
+          <div class="cmp-item">
+            <div class="cmp-curr">{{ data.current.avg | currency:'PHP':'symbol':'1.2-2' }}</div>
+            <div class="cmp-prev">prev: {{ data.previous.avg | currency:'PHP':'symbol':'1.2-2' }}</div>
+            <div class="cmp-badge"
+                 [class.up]="pct(data.current.avg, data.previous.avg) >= 0"
+                 [class.down]="pct(data.current.avg, data.previous.avg) < 0">
+              <ion-icon [name]="pctIcon(data.current.avg, data.previous.avg)"></ion-icon>
+              {{ pctLabel(data.current.avg, data.previous.avg) }}
+            </div>
+            <div class="cmp-lbl">Avg Ticket</div>
+          </div>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Bar chart -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ period === 'today' ? 'Hourly Revenue' : 'Daily Revenue' }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content class="chart-content">
+        <div class="bar-chart">
+          @for (bar of data.breakdown; track bar.label) {
+            <div class="bar-col">
+              <div class="bar-amount">{{ bar.revenue > 0 ? (bar.revenue | currency:'PHP':'symbol':'1.0-0') : '' }}</div>
+              <div class="bar-outer">
+                <div class="bar-fill" [style.height.%]="barHeight(bar.revenue)"></div>
+              </div>
+              <div class="bar-lbl">{{ bar.label }}</div>
+            </div>
+          }
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Top services -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>Top Services</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (data.topServices.length === 0) {
+          <p class="empty">No service sales this period.</p>
+        }
+        @for (svc of data.topServices; track svc.service_name; let i = $index) {
+          <div class="top-row">
+            <span class="rank">#{{ i + 1 }}</span>
+            <span class="svc-name">{{ svc.service_name }}</span>
+            <ion-chip color="primary" size="small"><ion-label>{{ svc.quantity }}x</ion-label></ion-chip>
+            <span class="svc-rev">{{ svc.revenue | currency:'PHP':'symbol':'1.2-2' }}</span>
+          </div>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Top products -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>Top Products</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (data.topProducts.length === 0) {
+          <p class="empty">No product sales this period.</p>
+        }
+        @for (prod of data.topProducts; track prod.product_name; let i = $index) {
+          <div class="top-row">
+            <span class="rank">#{{ i + 1 }}</span>
+            <span class="svc-name">{{ prod.product_name }}</span>
+            <ion-chip color="secondary" size="small"><ion-label>{{ prod.quantity }}x</ion-label></ion-chip>
+            <span class="svc-rev">{{ prod.revenue | currency:'PHP':'symbol':'1.2-2' }}</span>
+          </div>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Top repeat customers -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>Top Repeat Customers</ion-card-title>
+        <div class="card-title-row rc-filters">
+          <div class="rc-period-tabs">
+            @for (rp of rcPeriods; track rp.value) {
+              <button
+                class="rc-tab"
+                [class.active]="repeatCustomerPeriod === rp.value"
+                (click)="setRcPeriod(rp.value)">
+                {{ rp.label }}
+              </button>
+            }
+          </div>
+          <div class="limit-input-wrap">
+            <span class="limit-label">Top</span>
+            <input
+              type="number"
+              min="1"
+              max="500"
+              [(ngModel)]="repeatCustomerLimit"
+              (change)="loadRepeatCustomers()"
+              class="limit-input" />
+          </div>
+        </div>
+      </ion-card-header>
+      <ion-card-content>
+        @if (repeatCustomers.length === 0) {
+          <p class="empty">No customers with a phone number found for this period.</p>
+        } @else {
+          <div class="rc-table">
+            <div class="rc-row rc-header">
+              <span>#</span>
+              <span>Customer</span>
+              <span class="rc-right">Visits</span>
+              <span class="rc-right">Total Spent</span>
+            </div>
+            @for (c of repeatCustomers; track c.phone_number; let i = $index) {
+              <div class="rc-row">
+                <span class="rank">#{{ i + 1 }}</span>
+                <span class="rc-customer">
+                  @if (c.customer_name) { <span class="rc-name">{{ c.customer_name }}</span> }
+                  @if (c.phone_number) { <span class="rc-phone">{{ c.phone_number }}</span> }
+                </span>
+                <span class="rc-right">
+                  <ion-chip color="tertiary" size="small"><ion-label>{{ c.visit_count }}x</ion-label></ion-chip>
+                </span>
+                <span class="rc-right rc-spent">{{ c.total_spent | currency:'PHP':'symbol':'1.2-2' }}</span>
+              </div>
+            }
+          </div>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Stock levels -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>Current Stock Levels</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (data.stockLevels.length === 0) {
+          <p class="empty">No products available.</p>
+        } @else {
+          <div class="stock-table">
+            <div class="stock-table-row stock-table-header">
+              <span>Product</span>
+              <span>Stock</span>
+              <span>Avg/day</span>
+              <span>Days left</span>
+              <span>Status</span>
+            </div>
+            @for (stock of data.stockLevels; track stock.product_name) {
+              <div class="stock-table-row">
+                <span class="stock-name">{{ stock.product_name }}</span>
+                <span class="stock-value">{{ stock.stock }} pcs</span>
+                <span>{{ stock.avgDailySales > 0 ? (stock.avgDailySales | number:'1.1-1') : '0' }}</span>
+                <span>{{ stock.daysRemaining !== null ? stock.daysRemaining : '∞' }}</span>
+                <span class="stock-status" [class.must-buy]="stock.status === 'must-buy'" [class.warning]="stock.status === 'warning'">{{ stock.status === 'must-buy' ? 'Must buy' : stock.status === 'warning' ? '2 days' : stock.status === 'no-sales' ? 'No sales' : 'OK' }}</span>
+              </div>
+            }
+          </div>
+        }
+      </ion-card-content>
+    </ion-card>
+  }
+</ion-content>

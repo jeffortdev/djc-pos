@@ -1,0 +1,316 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>
+      <div class="title-inner-wrap">
+        <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+        @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+          <span class="header-title">{{ branding.appTitle$ | async }}</span>
+        }
+      </div>
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+
+  <!-- Branding -->
+  <div class="section-header">Branding</div>
+
+  <!-- Theme -->
+  <ion-list inset>
+    <ion-item>
+      <ion-icon name="laptop-outline" slot="start" color="primary"></ion-icon>
+      <ion-label>Color Theme</ion-label>
+    </ion-item>
+    <ion-item lines="none" class="theme-segment-item">
+      <ion-segment [(ngModel)]="colorTheme" (ionChange)="saveTheme()" class="theme-segment">
+        <ion-segment-button value="system">
+          <ion-icon name="laptop-outline"></ion-icon>
+          <ion-label>System</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="light">
+          <ion-icon name="sunny-outline"></ion-icon>
+          <ion-label>Light</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="dark">
+          <ion-icon name="moon-outline"></ion-icon>
+          <ion-label>Dark</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+    </ion-item>
+  </ion-list>
+
+  <!-- App Title -->
+  <ion-list inset>
+    <ion-item>
+      <ion-icon name="text-outline" slot="start" color="primary"></ion-icon>
+      <ion-label position="stacked">Header Title</ion-label>
+      <ion-input
+        placeholder="DJC Point of Sale"
+        [(ngModel)]="appTitle"
+      ></ion-input>
+    </ion-item>
+  </ion-list>
+  <div class="btn-wrap">
+    <ion-button expand="block" fill="outline" (click)="saveTitle()" [disabled]="titleSaving">
+      <ion-icon name="text-outline" slot="start"></ion-icon>
+      Save Title
+    </ion-button>
+  </div>
+
+  <!-- Logo Upload -->
+  <ion-list inset>
+    <ion-item>
+      <ion-icon name="image-outline" slot="start" color="primary"></ion-icon>
+      <ion-label>
+        <h3>Header Logo</h3>
+        <p>Replaces the logo on all page headers</p>
+      </ion-label>
+    </ion-item>
+    @if (logoPreview) {
+      <ion-item lines="none" class="preview-item logo-dark-preview">
+        <img [src]="logoPreview" class="preview-img">
+      </ion-item>
+    }
+    <ion-item lines="none" class="action-row">
+      <ion-button fill="outline" size="small" (click)="pickLogo()">
+        <ion-icon name="cloud-upload-outline" slot="start"></ion-icon>
+        Upload Logo
+      </ion-button>
+      @if (logoPreview && logoPreview !== 'assets/logo.svg') {
+        <ion-button fill="outline" size="small" color="danger" (click)="removeLogo()" class="ml-8">
+          <ion-icon name="trash-outline" slot="start"></ion-icon>
+          Remove
+        </ion-button>
+      }
+    </ion-item>
+  </ion-list>
+
+  <!-- Watermark / Background -->
+  <div class="section-header">Background / Watermark</div>
+  <ion-list inset>
+    <ion-item>
+      <ion-icon name="layers-outline" slot="start" color="primary"></ion-icon>
+      <ion-label>
+        <h3>Watermark Image</h3>
+        <p>Full-screen overlay behind the app (non-interactive)</p>
+        <p class="screen-hint">Recommended size for this device: <strong>{{ screenSizeHint }}</strong></p>
+      </ion-label>
+    </ion-item>
+    @if (watermarkPreview) {
+      <ion-item lines="none" class="preview-item">
+        <img [src]="watermarkPreview" class="preview-img watermark-thumb">
+      </ion-item>
+    }
+    <ion-item lines="none" class="action-row">
+      <ion-button fill="outline" size="small" (click)="pickWatermark()">
+        <ion-icon name="cloud-upload-outline" slot="start"></ion-icon>
+        Upload Watermark
+      </ion-button>
+      @if (watermarkPreview) {
+        <ion-button fill="outline" size="small" color="danger" (click)="removeWatermark()" class="ml-8">
+          <ion-icon name="trash-outline" slot="start"></ion-icon>
+          Remove
+        </ion-button>
+      }
+    </ion-item>
+    @if (watermarkPreview) {
+      <ion-item>
+        <ion-icon name="layers-outline" slot="start" color="medium"></ion-icon>
+        <ion-label>Opacity</ion-label>
+        <div class="opacity-wrap" slot="end">
+          <ion-range
+            min="5"
+            max="80"
+            step="1"
+            [value]="watermarkOpacityPct"
+            (ionChange)="onOpacityChange($event)"
+            style="min-width: 160px;"
+          ></ion-range>
+          <span class="opacity-pct">{{ watermarkOpacityPct }}%</span>
+        </div>
+      </ion-item>
+    }
+  </ion-list>
+
+  <!-- Services admin link -->
+  <div class="section-header">Services</div>
+  <ion-list inset>
+    <ion-item button (click)="goServices()" detail>
+      <ion-icon name="construct-outline" slot="start" color="primary"></ion-icon>
+      <ion-label>Manage Services</ion-label>
+    </ion-item>
+  </ion-list>
+
+  <!-- Products admin link -->
+  <div class="section-header">Products</div>
+  <ion-list inset>
+    <ion-item button (click)="goProducts()" detail>
+      <ion-icon name="add-circle-outline" slot="start" color="primary"></ion-icon>
+      <ion-label>Manage Products</ion-label>
+    </ion-item>
+  </ion-list>
+
+  <!-- Sales Target -->
+  <div class="section-header">Sales Target</div>
+  <ion-list inset>
+    <ion-item>
+      <ion-icon name="trending-up-outline" slot="start" color="primary"></ion-icon>
+      <ion-label position="stacked">Monthly Revenue Target (₱)</ion-label>
+      <ion-input
+        type="number"
+        inputmode="decimal"
+        placeholder="e.g. 100000"
+        [(ngModel)]="monthlyTarget"
+      ></ion-input>
+    </ion-item>
+  </ion-list>
+  <div class="btn-wrap">
+    <ion-button expand="block" fill="outline" (click)="saveMonthlyTarget()" [disabled]="targetSaving">
+      <ion-icon name="trending-up-outline" slot="start"></ion-icon>
+      Save Target
+    </ion-button>
+  </div>
+
+  <!-- Customers admin link -->
+  <div class="section-header">Customers</div>
+  <ion-list inset>
+    <ion-item button (click)="goCustomers()" detail>
+      <ion-icon name="people-outline" slot="start" color="primary"></ion-icon>
+      <ion-label>Manage Customers</ion-label>
+    </ion-item>
+  </ion-list>
+
+  <!-- Change PIN -->
+  <div class="section-header">Security</div>
+  <ion-list inset>
+    <ion-item>
+      <ion-icon name="lock-closed-outline" slot="start" color="primary"></ion-icon>
+      <ion-label position="stacked">Current PIN</ion-label>
+      <ion-input
+        type="password"
+        inputmode="numeric"
+        maxlength="20"
+        placeholder="Enter current PIN"
+        [(ngModel)]="currentPin"
+        (ionInput)="clearError()"
+      ></ion-input>
+    </ion-item>
+    <ion-item>
+      <ion-label position="stacked">New PIN</ion-label>
+      <ion-input
+        type="password"
+        inputmode="numeric"
+        maxlength="20"
+        placeholder="Enter new PIN"
+        [(ngModel)]="newPin"
+        (ionInput)="clearError()"
+      ></ion-input>
+    </ion-item>
+    <ion-item>
+      <ion-label position="stacked">Confirm New PIN</ion-label>
+      <ion-input
+        type="password"
+        inputmode="numeric"
+        maxlength="20"
+        placeholder="Repeat new PIN"
+        [(ngModel)]="confirmPin"
+        (ionInput)="clearError()"
+      ></ion-input>
+    </ion-item>
+    @if (errorMsg) {
+      <ion-item lines="none">
+        <ion-note color="danger" class="err-note">{{ errorMsg }}</ion-note>
+      </ion-item>
+    }
+  </ion-list>
+
+  <div class="btn-wrap">
+    <ion-button expand="block" (click)="changePin()" [disabled]="saving">
+      <ion-icon name="lock-closed-outline" slot="start"></ion-icon>
+      Change PIN
+    </ion-button>
+  </div>
+
+  <div class="section-header">SMS Message</div>
+  <ion-list inset>
+    <ion-item>
+      <ion-label position="stacked">Pickup notification template</ion-label>
+      <ion-textarea
+        rows="5"
+        placeholder="Enter SMS message template"
+        [(ngModel)]="smsMessage"
+      ></ion-textarea>
+    </ion-item>
+    <ion-item lines="none">
+      <ion-note>
+        Use <strong>{{ '{{order_id}}' }}</strong> for the order number and <strong>{{ '{{customer_name}}' }}</strong> for the customer name.
+      </ion-note>
+    </ion-item>
+  </ion-list>
+  <div class="btn-wrap">
+    <ion-button expand="block" fill="outline" (click)="saveSmsMessage()" [disabled]="smsSaving">
+      <ion-icon name="chatbubble-outline" slot="start"></ion-icon>
+      Save SMS Template
+    </ion-button>
+  </div>
+
+  <div class="section-header">Loyalty SMS Message</div>
+  <ion-list inset>
+    <ion-item>
+      <ion-label position="stacked">Loyalty incentive notification template</ion-label>
+      <ion-textarea
+        rows="5"
+        placeholder="Enter loyalty SMS message template"
+        [(ngModel)]="loyaltySmsMessage"
+      ></ion-textarea>
+    </ion-item>
+    <ion-item lines="none">
+      <ion-note>
+        Use <strong>{{ '{{customer_name}}' }}</strong> for the customer name.
+      </ion-note>
+    </ion-item>
+  </ion-list>
+  <div class="btn-wrap">
+    <ion-button expand="block" fill="outline" (click)="saveLoyaltySmsMessage()" [disabled]="loyaltySmsSaving">
+      <ion-icon name="chatbubble-outline" slot="start"></ion-icon>
+      Save Loyalty SMS Template
+    </ion-button>
+  </div>
+
+  <div class="section-header">Messaging Apps</div>
+  <ion-list inset>
+    <ion-item lines="none">
+      <ion-note>
+        <p>Available messaging apps for sending notifications:</p>
+        <ul style="margin: 8px 0; padding-left: 18px; font-size: 0.85rem;">
+          <li><strong>SMS</strong> - Standard text messaging</li>
+          <li><strong>WhatsApp</strong> - Send via WhatsApp Web/App</li>
+          <li><strong>Viber</strong> - Send via Viber App</li>
+          <li><strong>WeChat</strong> - Send via WeChat (copy-paste)</li>
+          <li><strong>Messenger</strong> - Send via Facebook Messenger</li>
+        </ul>
+        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: 8px;">
+          When you tap the notification button, you'll be prompted to choose which app to use.
+        </p>
+      </ion-note>
+    </ion-item>
+  </ion-list>
+
+  <div class="section-header">Backup</div>
+  <ion-list inset>
+    <ion-item lines="none">
+      <ion-button expand="block" fill="outline" (click)="backupDatabase()">
+        <ion-icon name="cloud-download-outline" slot="start"></ion-icon>
+        Backup Database
+      </ion-button>
+    </ion-item>
+    <ion-item lines="none">
+      <ion-button expand="block" fill="outline" (click)="restoreDatabase()">
+        <ion-icon name="cloud-upload-outline" slot="start"></ion-icon>
+        Restore Database
+      </ion-button>
+    </ion-item>
+  </ion-list>
+
+</ion-content>

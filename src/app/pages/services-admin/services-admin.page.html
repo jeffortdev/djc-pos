@@ -1,0 +1,129 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>
+      <div class="title-inner-wrap">
+        <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+        @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+          <span class="header-title">{{ branding.appTitle$ | async }}</span>
+        }
+      </div>
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="sortAsc = !sortAsc" aria-label="Toggle sort order">
+        <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+      <ion-button (click)="startAdd()">
+        <ion-icon name="add-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refreshList($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <ion-searchbar
+    [(ngModel)]="filterTerm"
+    placeholder="Filter services…"
+    debounce="200"
+    class="admin-search"
+  ></ion-searchbar>
+
+  @if (loading) {
+    <div class="loading-center">
+      <ion-spinner name="crescent"></ion-spinner>
+    </div>
+  }
+
+  <!-- Add / Edit form -->
+  @if (editing) {
+    <ion-card class="edit-card">
+      <ion-card-content>
+        <h2 class="form-heading">{{ isNew ? 'New Service' : 'Edit Service' }}</h2>
+        <ion-item>
+          <ion-label position="stacked">Name *</ion-label>
+          <ion-input [(ngModel)]="form.name" placeholder="Service name"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">Price *</ion-label>
+          <ion-input type="number" min="0" step="0.01" [(ngModel)]="form.price" placeholder="0.00"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">Category</ion-label>
+          <ion-select [(ngModel)]="form.category" interface="action-sheet">
+            @for (cat of categories; track cat) {
+              <ion-select-option [value]="cat">{{ cat }}</ion-select-option>
+            }
+          </ion-select>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">Unit</ion-label>
+          <ion-select [(ngModel)]="form.unit" interface="action-sheet">
+            @for (u of units; track u) {
+              <ion-select-option [value]="u">{{ u }}</ion-select-option>
+            }
+          </ion-select>
+        </ion-item>
+        <ion-item>
+          <ion-icon name="heart-outline" slot="start" [color]="(form.loyalty_tracking ?? 1) === 1 ? 'danger' : 'medium'"></ion-icon>
+          <ion-label>Include in Loyalty Tracking</ion-label>
+          <ion-toggle
+            slot="end"
+            [checked]="(form.loyalty_tracking ?? 1) === 1"
+            (ionChange)="form.loyalty_tracking = $event.detail.checked ? 1 : 0"
+          ></ion-toggle>
+        </ion-item>
+        <div class="form-actions">
+          <ion-button fill="outline" (click)="cancelEdit()">
+            <ion-icon name="close-outline" slot="start"></ion-icon>
+            Cancel
+          </ion-button>
+          <ion-button [disabled]="!form.name || form.price === undefined || form.price === null" (click)="save()">
+            <ion-icon name="checkmark-outline" slot="start"></ion-icon>
+            Save
+          </ion-button>
+        </div>
+      </ion-card-content>
+    </ion-card>
+  }
+
+  <!-- Service list -->
+  <div class="service-list">
+    @for (svc of filteredServices; track svc.id) {
+      <ion-card class="svc-card">
+        <ion-card-content>
+          <div class="svc-row">
+            <div class="svc-info">
+              <span class="svc-name">{{ svc.name }}</span>
+              <span class="svc-meta">{{ svc.category }} · {{ svc.unit }}</span>
+            </div>
+            <span class="svc-price">{{ svc.price | currency:'PHP':'symbol':'1.2-2' }}</span>
+            <ion-toggle
+              [checked]="svc.active === 1"
+              (ionChange)="toggleActive(svc, $event.detail.checked)"
+              size="small"
+            ></ion-toggle>
+            <ion-button fill="clear" size="small" (click)="startEdit(svc)">
+              <ion-icon name="create-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+            <ion-button fill="clear" size="small" color="danger" (click)="deleteService(svc)">
+              <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+          </div>
+          <div class="svc-loyalty-row">
+            <ion-icon [name]="svc.loyalty_tracking === 1 ? 'heart' : 'heart-outline'" [color]="svc.loyalty_tracking === 1 ? 'danger' : 'medium'" class="loyalty-icon"></ion-icon>
+            <span class="loyalty-label">Loyalty Tracking</span>
+            <ion-toggle
+              [checked]="svc.loyalty_tracking === 1"
+              (ionChange)="toggleLoyalty(svc, $event.detail.checked)"
+              size="small"
+              color="danger"
+            ></ion-toggle>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    }
+  </div>
+</ion-content>

@@ -1,0 +1,243 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>
+      <div class="title-inner-wrap">
+        <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+        @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+          <span class="header-title">{{ branding.appTitle$ | async }}</span>
+        }
+      </div>
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <ion-searchbar
+    [(ngModel)]="searchQuery"
+    (ionInput)="onSearch($event)"
+    (ionClear)="clearSearch()"
+    placeholder="Search by name, phone, personnel, notes, ID…"
+    debounce="300"
+    class="history-search"
+  ></ion-searchbar>
+
+  <ion-segment [(ngModel)]="activeTab" class="history-segment">
+    <ion-segment-button value="sales">
+      <ion-icon name="receipt-outline"></ion-icon>
+      <ion-label>Sales</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="cash">
+      <ion-icon name="wallet-outline"></ion-icon>
+      <ion-label>Cash</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="stock">
+      <ion-icon name="cube-outline"></ion-icon>
+      <ion-label>Stock</ion-label>
+    </ion-segment-button>
+  </ion-segment>
+
+  <!-- Sales Filters -->
+  @if (activeTab === 'sales') {
+    <div class="filter-section">
+      <div class="filter-row">
+        <ion-item class="filter-item flex-1">
+          <ion-label>Status</ion-label>
+          <ion-select [(ngModel)]="statusFilter" (ionChange)="onFilterChange()">
+            <ion-select-option value="">All</ion-select-option>
+            <ion-select-option value="pending">Pending</ion-select-option>
+            <ion-select-option value="paid">Paid</ion-select-option>
+            <ion-select-option value="picked_up">Picked Up</ion-select-option>
+          </ion-select>
+        </ion-item>
+        <ion-item class="filter-item flex-1">
+          <ion-label>Payment</ion-label>
+          <ion-select [(ngModel)]="paymentMethodFilter" (ionChange)="onFilterChange()">
+            <ion-select-option value="">All</ion-select-option>
+            <ion-select-option value="cash">Cash</ion-select-option>
+            <ion-select-option value="card">Card</ion-select-option>
+            <ion-select-option value="check">Check</ion-select-option>
+            <ion-select-option value="other">Other</ion-select-option>
+          </ion-select>
+        </ion-item>
+      </div>
+    </div>
+  }
+
+  <!-- Cash Filters -->
+  @if (activeTab === 'cash') {
+    <div class="filter-section">
+      <ion-item class="filter-item">
+        <ion-input placeholder="Search notes..." [(ngModel)]="cashSearchQuery" (ionInput)="onFilterChange()"></ion-input>
+      </ion-item>
+    </div>
+  }
+
+  <!-- Stock Filters -->
+  @if (activeTab === 'stock') {
+    <div class="filter-section">
+      <ion-item class="filter-item">
+        <ion-input placeholder="Search product name..." [(ngModel)]="stockSearchQuery" (ionInput)="onFilterChange()"></ion-input>
+      </ion-item>
+      <ion-item class="filter-item">
+        <ion-label>Reason</ion-label>
+        <ion-select [(ngModel)]="stockReasonFilter" (ionChange)="onFilterChange()">
+          <ion-select-option value="">All Reasons</ion-select-option>
+          <ion-select-option value="adjustment">Adjustment</ion-select-option>
+          <ion-select-option value="sold">Sold</ion-select-option>
+          <ion-select-option value="damaged">Damaged</ion-select-option>
+          <ion-select-option value="received">Received</ion-select-option>
+        </ion-select>
+      </ion-item>
+    </div>
+  }
+
+  @if (activeTab === 'sales') {
+    @if (loading) {
+      <div class="loading-center">
+        <ion-spinner name="crescent"></ion-spinner>
+      </div>
+    } @else if (filteredTransactions.length === 0) {
+      <div class="empty-state">
+        <ion-icon name="receipt-outline"></ion-icon>
+        <p>{{ transactions.length === 0 ? 'No transactions found.' : 'No matching transactions.' }}</p>
+      </div>
+    } @else {
+      <div class="tx-list">
+        @for (tx of filteredTransactions; track tx.id) {
+          <ion-card class="tx-card">
+            <ion-card-content>
+              <div class="tx-row">
+                <div class="tx-meta">
+                  <span class="tx-id"># {{ tx.id }}</span>
+                  <span class="tx-date">{{ tx.created_at | date:'medium' }}</span>
+                  @if (tx.customer_name) { <span class="tx-customer">{{ tx.customer_name }}</span> }
+                  <span class="tx-personel">{{ tx.personel || 'Personel' }}</span>
+                  @if (tx.notes) { <span class="tx-notes">{{ tx.notes }}</span> }
+                </div>
+                <div class="tx-right">
+                  <span class="tx-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+                  @if ((tx.status ?? 'paid') === 'pending') {
+                    <ion-chip color="warning" size="small">
+                      <ion-icon name="hourglass-outline" slot="start" aria-hidden="true"></ion-icon>
+                      <ion-label>Pending</ion-label>
+                    </ion-chip>
+                  } @else if (tx.status === 'picked_up') {
+                    <ion-chip color="success" size="small">
+                      <ion-icon name="checkmark-done-outline" slot="start" aria-hidden="true"></ion-icon>
+                      <ion-label>Picked Up</ion-label>
+                    </ion-chip>
+                  } @else {
+                    <ion-chip [color]="paymentColor(tx.payment_method)" size="small">
+                      <ion-label>{{ tx.payment_method }}</ion-label>
+                    </ion-chip>
+                  }
+                </div>
+              </div>
+              <div class="tx-actions">
+                <ion-button fill="clear"
+                  (click)="onReceiptTap(tx)"
+                  (touchstart)="startLongPress('View Receipt')"
+                  (touchend)="endLongPress()"
+                  (touchmove)="endLongPress()">
+                  <ion-icon name="eye-outline" slot="icon-only"></ion-icon>
+                </ion-button>
+                <ion-button fill="clear" color="danger"
+                  (click)="onDeleteTap(tx)"
+                  (touchstart)="startLongPress('Delete Transaction')"
+                  (touchend)="endLongPress()"
+                  (touchmove)="endLongPress()">
+                  <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+                </ion-button>
+              </div>
+            </ion-card-content>
+          </ion-card>
+        }
+      </div>
+      @if (hasMore && !searchQuery) {
+        <ion-infinite-scroll (ionInfinite)="loadMore($event)">
+          <ion-infinite-scroll-content loadingText="Loading more..."></ion-infinite-scroll-content>
+        </ion-infinite-scroll>
+      }
+    }
+  }
+
+  @if (activeTab === 'cash') {
+    @if (cashLoading) {
+      <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
+    } @else if (filteredCashHistory.length === 0) {
+      <div class="empty-state">
+        <ion-icon name="wallet-outline"></ion-icon>
+        <p>{{ registerHistory.length === 0 ? 'No cash adjustments recorded.' : 'No matching entries.' }}</p>
+      </div>
+    } @else {
+      <div class="tx-list">
+        @for (entry of filteredCashHistory; track entry.id) {
+          <ion-card class="tx-card">
+            <ion-card-content>
+              <div class="tx-row">
+                <div class="tx-meta">
+                  <span class="tx-date">{{ entry.created_at | date:'medium' }}</span>
+                  @if (entry.note) { <span class="tx-notes">{{ entry.note }}</span> }
+                </div>
+                <div class="tx-right">
+                  <span class="tx-total" [class.neg-amount]="entry.amount < 0">
+                    {{ entry.amount >= 0 ? '+' : '' }}{{ entry.amount | currency:'PHP':'symbol':'1.2-2' }}
+                  </span>
+                  <ion-chip [color]="entry.amount >= 0 ? 'success' : 'danger'" size="small">
+                    <ion-icon [name]="entry.amount >= 0 ? 'arrow-up-outline' : 'arrow-down-outline'" slot="start"></ion-icon>
+                    <ion-label>{{ entry.amount >= 0 ? 'Added' : 'Removed' }}</ion-label>
+                  </ion-chip>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+        }
+      </div>
+    }
+  }
+
+  @if (activeTab === 'stock') {
+    @if (stockLoading) {
+      <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
+    } @else if (filteredStockHistory.length === 0) {
+      <div class="empty-state">
+        <ion-icon name="cube-outline"></ion-icon>
+        <p>{{ stockHistory.length === 0 ? 'No stock changes recorded.' : 'No matching entries.' }}</p>
+      </div>
+    } @else {
+      <div class="tx-list">
+        @for (entry of filteredStockHistory; track entry.id) {
+          <ion-card class="tx-card">
+            <ion-card-content>
+              <div class="tx-row">
+                <div class="tx-meta">
+                  <span class="tx-id">{{ entry.product_name }}</span>
+                  <span class="tx-date">{{ entry.created_at | date:'medium' }}</span>
+                  @if (entry.note) { <span class="tx-notes">{{ entry.note }}</span> }
+                </div>
+                <div class="tx-right">
+                  <span class="tx-total" [class.neg-amount]="entry.delta < 0">
+                    {{ entry.delta > 0 ? '+' : '' }}{{ entry.delta }} pcs
+                  </span>
+                  <ion-chip [color]="entry.delta > 0 ? 'success' : 'danger'" size="small">
+                    <ion-label>{{ entry.reason | titlecase }}</ion-label>
+                  </ion-chip>
+                  <span class="stock-after">Stock: {{ entry.stock_after }}</span>
+                </div>
+              </div>
+            </ion-card-content>
+          </ion-card>
+        }
+      </div>
+      @if (stockHasMore) {
+        <ion-infinite-scroll (ionInfinite)="loadMoreStock($event)">
+          <ion-infinite-scroll-content loadingText="Loading more..."></ion-infinite-scroll-content>
+        </ion-infinite-scroll>
+      }
+    }
+  }
+</ion-content>

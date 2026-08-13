@@ -1,0 +1,199 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>
+      <div class="title-inner-wrap">
+        <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+        @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+          <span class="header-title">{{ branding.appTitle$ | async }}</span>
+        }
+      </div>
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="sortAsc = !sortAsc" aria-label="Toggle sort order">
+        <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+      <ion-button (click)="startAdd()">
+        <ion-icon name="add-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <ion-searchbar
+    [(ngModel)]="filterTerm"
+    placeholder="Filter products…"
+    debounce="200"
+    class="admin-search"
+  ></ion-searchbar>
+
+  @if (loading) {
+    <div class="loading-center">
+      <ion-spinner name="crescent"></ion-spinner>
+    </div>
+  }
+
+  <!-- Add / Edit form -->
+  @if (editing) {
+    <ion-card class="edit-card">
+      <ion-card-content>
+        <h2 class="form-heading">{{ isNew ? 'New Product' : 'Edit Product' }}</h2>
+        <ion-item>
+          <ion-label position="stacked">Name *</ion-label>
+          <ion-input [(ngModel)]="form.name" placeholder="Product name"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">Type</ion-label>
+          <ion-select [(ngModel)]="form.type" interface="action-sheet">
+            @for (type of types; track type) {
+              <ion-select-option [value]="type">{{ type }}</ion-select-option>
+            }
+          </ion-select>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">Cost *</ion-label>
+          <ion-input type="number" min="0" step="0.01" [(ngModel)]="form.cost" placeholder="0.00"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">Price *</ion-label>
+          <ion-input type="number" min="0" step="0.01" [(ngModel)]="form.price" placeholder="0.00"></ion-input>
+        </ion-item>
+        @if (isNew) {
+          <ion-item>
+            <ion-label position="stacked">Opening Stock</ion-label>
+            <ion-input type="number" min="0" step="1" [(ngModel)]="form.stock" placeholder="0"></ion-input>
+          </ion-item>
+        }
+        <ion-item>
+          <ion-label>Active</ion-label>
+          <ion-toggle [(ngModel)]="form.active"></ion-toggle>
+        </ion-item>
+        <div class="form-actions">
+          <ion-button fill="outline" (click)="cancelEdit()">
+            <ion-icon name="close-outline" slot="start"></ion-icon>
+            Cancel
+          </ion-button>
+          <ion-button [disabled]="!form.name || form.price === undefined || form.cost === undefined" (click)="save()">
+            <ion-icon name="checkmark-outline" slot="start"></ion-icon>
+            Save
+          </ion-button>
+        </div>
+      </ion-card-content>
+    </ion-card>
+  }
+
+  <div class="product-list">
+    @for (product of filteredProducts; track product.id) {
+      <ion-card class="prod-card">
+        <ion-card-content>
+
+          <!-- Main product row -->
+          <div class="prod-row">
+            <div class="prod-info">
+              <span class="prod-name">{{ product.name }}</span>
+              <span class="prod-meta">{{ product.type }}</span>
+            </div>
+            <div class="prod-right">
+              <ion-badge [color]="stockColor(product.stock)" class="stock-badge">{{ product.stock }} pcs</ion-badge>
+              <span class="prod-price">{{ product.price | currency:'PHP':'symbol':'1.2-2' }}</span>
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="prod-actions">
+            <ion-button fill="clear" size="small" (click)="toggleAdjust(product)">
+              <ion-icon name="add-circle-outline" slot="start"></ion-icon>
+              Adjust
+            </ion-button>
+            <ion-button fill="clear" size="small" (click)="toggleHistory(product)">
+              <ion-icon name="time-outline" slot="start"></ion-icon>
+              History
+            </ion-button>
+            <ion-button fill="clear" size="small" (click)="startEdit(product)">
+              <ion-icon name="create-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+            <ion-button fill="clear" size="small" color="danger" (click)="deleteProduct(product)">
+              <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+            </ion-button>
+          </div>
+
+          <!-- Inline stock adjustment panel -->
+          @if (adjustingId === product.id) {
+            <div class="adjust-panel">
+              <div class="adjust-mode-row">
+                <button class="mode-btn" [class.add]="adjustMode === 'add'" (click)="adjustMode = 'add'">
+                  <ion-icon name="add-circle-outline"></ion-icon> Add
+                </button>
+                <button class="mode-btn" [class.deduct]="adjustMode === 'deduct'" (click)="adjustMode = 'deduct'">
+                  <ion-icon name="remove-circle-outline"></ion-icon> Deduct
+                </button>
+              </div>
+              <div class="adjust-fields">
+                <div class="adjust-field">
+                  <label>Qty</label>
+                  <input type="number" min="1" step="1" [(ngModel)]="adjustQty" class="adj-input">
+                </div>
+                <div class="adjust-field">
+                  <label>Reason</label>
+                  <select [(ngModel)]="adjustReason" class="adj-select">
+                    @for (r of stockReasons; track r) {
+                      <option [value]="r">{{ r }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+              <div class="adjust-field full-width">
+                <label>Note (optional)</label>
+                <input type="text" [(ngModel)]="adjustNote" placeholder="e.g. bought from supplier" class="adj-input">
+              </div>
+              <div class="adjust-actions">
+                <ion-button fill="outline" size="small" (click)="cancelAdjust()">Cancel</ion-button>
+                <ion-button size="small" [color]="adjustMode === 'add' ? 'success' : 'danger'"
+                  [disabled]="!adjustQty || adjustQty < 1"
+                  (click)="applyAdjust(product)">
+                  {{ adjustMode === 'add' ? '+ Add' : '− Deduct' }} {{ adjustQty }} pcs
+                </ion-button>
+              </div>
+            </div>
+          }
+
+          <!-- Inline history panel -->
+          @if (expandedHistoryId === product.id) {
+            <div class="history-panel">
+              <div class="history-header">Stock History</div>
+              @if (historyLoading) {
+                <div class="hist-loading"><ion-spinner name="dots"></ion-spinner></div>
+              } @else if ((historyMap[product.id] || []).length === 0) {
+                <p class="hist-empty">No history yet.</p>
+              } @else {
+                <div class="hist-table">
+                  <div class="hist-row hist-head">
+                    <span>Date</span>
+                    <span>Change</span>
+                    <span>Stock</span>
+                    <span>Reason</span>
+                  </div>
+                  @for (entry of historyMap[product.id]; track entry.id) {
+                    <div class="hist-row">
+                      <span class="hist-date">{{ entry.created_at | date:'MM/dd HH:mm' }}</span>
+                      <span class="hist-delta" [class.pos]="entry.delta > 0" [class.neg]="entry.delta < 0">
+                        {{ entry.delta > 0 ? '+' : '' }}{{ entry.delta }}
+                      </span>
+                      <span class="hist-after">{{ entry.stock_after }}</span>
+                      <span class="hist-reason">{{ entry.reason }}{{ entry.note ? ' — ' + entry.note : '' }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+        </ion-card-content>
+      </ion-card>
+    }
+  </div>
+</ion-content>

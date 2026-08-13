@@ -1,0 +1,15 @@
+.loading-center { display: flex; justify-content: center; align-items: center; height: 60vh; }
+.admin-search { padding: 4px 8px 0; }
+.edit-card { margin: 8px; }
+.form-heading { font-size: 1rem; font-weight: 600; margin: 0 0 8px; }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.service-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.svc-card ion-card-content { padding: 10px 12px; }
+.svc-row { display: flex; align-items: center; gap: 6px; }
+.svc-info { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.svc-name { font-weight: 600; font-size: 0.9rem; }
+.svc-meta { font-size: 0.72rem; opacity: 0.55; text-transform: capitalize; }
+.svc-price { font-weight: 700; color: var(--ion-color-primary); white-space: nowrap; }
+.svc-loyalty-row { display: flex; align-items: center; gap: 6px; padding: 4px 0 0; border-top: 1px solid var(--ion-border-color); margin-top: 6px; }
+.loyalty-icon { font-size: 1rem; }
+.loyalty-label { flex: 1; font-size: 0.72rem; opacity: 0.65; }

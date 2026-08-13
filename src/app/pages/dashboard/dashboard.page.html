@@ -1,0 +1,362 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>
+      <div class="title-inner-wrap">
+        <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+        @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+          <span class="header-title">{{ branding.appTitle$ | async }}</span>
+        }
+      </div>
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  @if (loading) {
+    <div class="loading-center">
+      <ion-spinner name="crescent"></ion-spinner>
+    </div>
+  } @else if (stats) {
+    <!-- Register balance -->
+    <ion-card class="register-card">
+      <ion-card-content>
+        <div class="register-row">
+          <div class="register-info">
+            <ion-icon name="wallet-outline" class="register-icon" color="success"></ion-icon>
+            <div>
+              <div class="register-value">{{ stats.register_balance | currency:'PHP':'symbol':'1.2-2' }}</div>
+              <div class="register-label">Cash in Register</div>
+            </div>
+          </div>
+          <ion-button size="small" fill="outline" color="success" (click)="addCash()">
+            <ion-icon name="add-circle-outline" slot="start"></ion-icon>
+            Add Cash
+          </ion-button>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Action Required: Pending Payment + Awaiting Pickup -->
+    <ion-card class="action-card">
+      <ion-card-header>
+        <ion-card-title>Action Required</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (actionLoading) {
+          <div class="loading-inline"><ion-spinner name="dots"></ion-spinner></div>
+        } @else if (pendingOrders.length === 0 && pickupOrders.length === 0) {
+          <p class="empty">All clear — no pending orders or pickups.</p>
+        } @else {
+          @if (pendingOrders.length > 0) {
+            <div class="action-section-label">
+              <ion-icon name="hourglass-outline" color="warning" class="section-icon"></ion-icon>
+              <span>Unpaid ({{ pendingOrders.length }})</span>
+            </div>
+            @for (tx of pendingOrders; track tx.id) {
+              <div class="action-row">
+                <div class="action-row-top">
+                  <span class="action-id">#{{ tx.id }}</span>
+                  @if (tx.customer_name || tx.notes) {
+                    <span class="action-customer">{{ tx.customer_name || tx.notes }}</span>
+                  }
+                  <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+                </div>
+                <div class="action-btns">
+                  <ion-button fill="clear" color="warning"
+                    (click)="editPendingOrder(tx)"
+                    (touchstart)="startLongPress('Edit Order')"
+                    (touchend)="endLongPress()"
+                    (touchmove)="endLongPress()">
+                    <ion-icon name="create-outline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                  <ion-button fill="clear" color="success"
+                    (click)="acceptPendingPayment(tx)"
+                    (touchstart)="startLongPress('Accept Payment')"
+                    (touchend)="endLongPress()"
+                    (touchmove)="endLongPress()">
+                    <ion-icon name="cash-outline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                  @if (tx.phone_number) {
+                    <div class="icon-btn-wrap">
+                      <ion-button fill="clear" color="success"
+                        (click)="notifyPickup(tx)"
+                        (touchstart)="startLongPress('Notify Customer')"
+                        (touchend)="endLongPress()"
+                        (touchmove)="endLongPress()">
+                        <ion-icon name="chatbubble-outline" slot="icon-only"></ion-icon>
+                      </ion-button>
+                      @if ((tx.notify_count ?? 0) > 0) {
+                        <span class="notify-badge">{{ tx.notify_count }}</span>
+                      }
+                    </div>
+                  }
+                  <ion-button fill="clear" color="danger"
+                    (click)="deletePendingOrder(tx)"
+                    (touchstart)="startLongPress('Delete')"
+                    (touchend)="endLongPress()"
+                    (touchmove)="endLongPress()">
+                    <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                </div>
+              </div>
+            }
+            <div class="action-total-row">
+              <span class="action-total-label">Total Unpaid</span>
+              <span class="action-total-sum">{{ pendingTotal | currency:'PHP':'symbol':'1.2-2' }}</span>
+            </div>
+          }
+          @if (pendingOrders.length > 0 && pickupOrders.length > 0) {
+            <div class="section-divider"></div>
+          }
+          @if (pickupOrders.length > 0) {
+            <div class="action-section-label">
+              <ion-icon name="receipt-outline" color="primary" class="section-icon"></ion-icon>
+              <span>Awaiting Pickup ({{ pickupOrders.length }})</span>
+            </div>
+            @for (tx of pickupOrders; track tx.id) {
+              <div class="action-row">
+                <div class="action-row-top">
+                  <span class="action-id">#{{ tx.id }}</span>
+                  @if (tx.customer_name || tx.notes) {
+                    <span class="action-customer">{{ tx.customer_name || tx.notes }}</span>
+                  }
+                  <span class="action-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+                </div>
+                <div class="action-btns">
+                  @if (tx.phone_number) {
+                    <div class="icon-btn-wrap">
+                      <ion-button fill="clear" color="success"
+                        (click)="notifyPickup(tx)"
+                        (touchstart)="startLongPress('Notify Customer')"
+                        (touchend)="endLongPress()"
+                        (touchmove)="endLongPress()">
+                        <ion-icon name="chatbubble-outline" slot="icon-only"></ion-icon>
+                      </ion-button>
+                      @if ((tx.notify_count ?? 0) > 0) {
+                        <span class="notify-badge">{{ tx.notify_count }}</span>
+                      }
+                    </div>
+                  }
+                  <ion-button fill="clear" color="primary"
+                    (click)="markPickedUp(tx)"
+                    (touchstart)="startLongPress('Mark as Picked Up')"
+                    (touchend)="endLongPress()"
+                    (touchmove)="endLongPress()">
+                    <ion-icon name="checkmark-done-outline" slot="icon-only"></ion-icon>
+                  </ion-button>
+                </div>
+              </div>
+            }
+          }
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Sales Targets -->
+    @if (monthlyTarget > 0) {
+      <ion-card class="target-card">
+        <ion-card-header>
+          <ion-card-title>Sales Targets</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <div class="target-row">
+            <span class="target-period">Today</span>
+            <span class="target-fraction" [class.t-success]="pctDay >= 100" [class.t-warning]="pctDay >= 70 && pctDay < 100" [class.t-danger]="pctDay < 70">
+              {{ (stats?.revenue ?? 0) | currency:'PHP':'symbol':'1.0-0' }} / {{ dayTarget | currency:'PHP':'symbol':'1.0-0' }}
+            </span>
+            <span class="target-pct" [class.t-success]="pctDay >= 100" [class.t-warning]="pctDay >= 70 && pctDay < 100" [class.t-danger]="pctDay < 70">{{ pctDay }}%</span>
+          </div>
+          <div class="target-bar-wrap"><div class="target-bar" [class.t-success]="pctDay >= 100" [class.t-warning]="pctDay >= 70 && pctDay < 100" [class.t-danger]="pctDay < 70" [style.width.%]="pctDay > 100 ? 100 : pctDay"></div></div>
+          <div class="target-need" [class.t-success]="pctDay >= 100" [class.t-danger]="pctDay < 100">
+            @if (pctDay >= 100) { ✓ Target met! } @else { Need {{ dayTarget - (stats?.revenue ?? 0) | currency:'PHP':'symbol':'1.0-0' }} more }
+          </div>
+          <div class="target-row">
+            <span class="target-period">This Week</span>
+            <span class="target-fraction" [class.t-success]="pctWeek >= 100" [class.t-warning]="pctWeek >= 70 && pctWeek < 100" [class.t-danger]="pctWeek < 70">
+              {{ weekRevenue | currency:'PHP':'symbol':'1.0-0' }} / {{ weekTarget | currency:'PHP':'symbol':'1.0-0' }}
+            </span>
+            <span class="target-pct" [class.t-success]="pctWeek >= 100" [class.t-warning]="pctWeek >= 70 && pctWeek < 100" [class.t-danger]="pctWeek < 70">{{ pctWeek }}%</span>
+          </div>
+          <div class="target-bar-wrap"><div class="target-bar" [class.t-success]="pctWeek >= 100" [class.t-warning]="pctWeek >= 70 && pctWeek < 100" [class.t-danger]="pctWeek < 70" [style.width.%]="pctWeek > 100 ? 100 : pctWeek"></div></div>
+          <div class="target-need" [class.t-success]="pctWeek >= 100" [class.t-danger]="pctWeek < 100">
+            @if (pctWeek >= 100) { ✓ Target met! } @else { Need {{ weekTarget - weekRevenue | currency:'PHP':'symbol':'1.0-0' }} more }
+          </div>
+          <div class="target-row">
+            <span class="target-period">This Month</span>
+            <span class="target-fraction" [class.t-success]="pctMonth >= 100" [class.t-warning]="pctMonth >= 70 && pctMonth < 100" [class.t-danger]="pctMonth < 70">
+              {{ monthRevenue | currency:'PHP':'symbol':'1.0-0' }} / {{ monthlyTarget | currency:'PHP':'symbol':'1.0-0' }}
+            </span>
+            <span class="target-pct" [class.t-success]="pctMonth >= 100" [class.t-warning]="pctMonth >= 70 && pctMonth < 100" [class.t-danger]="pctMonth < 70">{{ pctMonth }}%</span>
+          </div>
+          <div class="target-bar-wrap"><div class="target-bar" [class.t-success]="pctMonth >= 100" [class.t-warning]="pctMonth >= 70 && pctMonth < 100" [class.t-danger]="pctMonth < 70" [style.width.%]="pctMonth > 100 ? 100 : pctMonth"></div></div>
+          <div class="target-need" [class.t-success]="pctMonth >= 100" [class.t-danger]="pctMonth < 100">
+            @if (pctMonth >= 100) { ✓ Target met! } @else { Need {{ monthlyTarget - monthRevenue | currency:'PHP':'symbol':'1.0-0' }} more }
+          </div>
+        </ion-card-content>
+      </ion-card>
+    }
+
+    <!-- KPI cards -->
+    <div class="kpi-grid">
+      <ion-card class="kpi-card">
+        <ion-card-content>
+          <ion-icon name="cash-outline" color="success" class="kpi-icon"></ion-icon>
+          <div class="kpi-value">{{ stats.revenue | currency:'PHP':'symbol':'1.2-2' }}</div>
+          <div class="kpi-label">Revenue</div>
+        </ion-card-content>
+      </ion-card>
+      <ion-card class="kpi-card">
+        <ion-card-content>
+          <ion-icon name="receipt-outline" color="primary" class="kpi-icon"></ion-icon>
+          <div class="kpi-value">{{ stats.transaction_count }}</div>
+          <div class="kpi-label">Transactions</div>
+        </ion-card-content>
+      </ion-card>
+      <ion-card class="kpi-card">
+        <ion-card-content>
+          <ion-icon name="trending-up-outline" color="warning" class="kpi-icon"></ion-icon>
+          <div class="kpi-value">{{ stats.avg_ticket | currency:'PHP':'symbol':'1.2-2' }}</div>
+          <div class="kpi-label">Avg Ticket</div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Sales Summary -->
+    <ion-card>
+      <ion-card-header>
+        <div class="sum-header">
+          <ion-card-title>Sales Summary</ion-card-title>
+          <div class="sum-period">
+            <button class="per-btn" [class.active]="summaryPeriod==='week'" (click)="setSummaryPeriod('week')">Week</button>
+            <button class="per-btn" [class.active]="summaryPeriod==='month'" (click)="setSummaryPeriod('month')">Month</button>
+          </div>
+        </div>
+      </ion-card-header>
+      <ion-card-content>
+        @if (summaryLoading) {
+          <div class="sum-loading"><ion-spinner name="dots"></ion-spinner></div>
+        } @else if (summary) {
+          <div class="sum-grid">
+            <div class="sum-item">
+              <span class="sum-val">{{ summary.current.revenue | currency:'PHP':'symbol':'1.0-0' }}</span>
+              <span class="sum-badge" [class.up]="pctRevenue >= 0" [class.down]="pctRevenue < 0">
+                <ion-icon [name]="pctRevenue >= 0 ? 'trending-up-outline' : 'trending-down-outline'"></ion-icon>
+                {{ pctRevenue >= 0 ? '+' : '' }}{{ pctRevenue | number:'1.0-0' }}%
+              </span>
+              <span class="sum-lbl">Revenue</span>
+            </div>
+            <div class="sum-item">
+              <span class="sum-val">{{ summary.current.count }}</span>
+              <span class="sum-badge" [class.up]="pctCount >= 0" [class.down]="pctCount < 0">
+                <ion-icon [name]="pctCount >= 0 ? 'trending-up-outline' : 'trending-down-outline'"></ion-icon>
+                {{ pctCount >= 0 ? '+' : '' }}{{ pctCount | number:'1.0-0' }}%
+              </span>
+              <span class="sum-lbl">Transactions</span>
+            </div>
+            <div class="sum-item">
+              <span class="sum-val">{{ summary.current.avg | currency:'PHP':'symbol':'1.0-0' }}</span>
+              <span class="sum-badge" [class.up]="pctAvg >= 0" [class.down]="pctAvg < 0">
+                <ion-icon [name]="pctAvg >= 0 ? 'trending-up-outline' : 'trending-down-outline'"></ion-icon>
+                {{ pctAvg >= 0 ? '+' : '' }}{{ pctAvg | number:'1.0-0' }}%
+              </span>
+              <span class="sum-lbl">Avg Ticket</span>
+            </div>
+          </div>
+          <div class="sum-footer">
+            <span class="prev-lbl">vs prev. {{ summaryPeriod === 'week' ? 'week' : 'month' }}:
+              {{ summary.previous.revenue | currency:'PHP':'symbol':'1.0-0' }}</span>
+            <button class="report-link" (click)="goToReports()">Full Report →</button>
+          </div>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Top services -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>Top Services Today</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (stats.topServices.length === 0) {
+          <p class="empty">No sales yet today.</p>
+        }
+        @for (svc of stats.topServices; track svc.service_name; let i = $index) {
+          <div class="top-svc-row">
+            <span class="rank">#{{ i + 1 }}</span>
+            <span class="svc-name">{{ svc.service_name }}</span>
+            <ion-chip color="primary" size="small">
+              <ion-label>{{ svc.quantity }}x</ion-label>
+            </ion-chip>
+            <span class="svc-rev">{{ svc.revenue | currency:'PHP':'symbol':'1.2-2' }}</span>
+          </div>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Recent transactions -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>Recent Transactions</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        @if (stats.recentTransactions.length === 0) {
+          <p class="empty">No transactions yet.</p>
+        }
+        @for (tx of stats.recentTransactions; track tx.id) {
+          <div class="recent-tx">
+            <div class="tx-left">
+              <span class="tx-id"># {{ tx.id }}</span>
+              <span class="tx-time">{{ tx.created_at | date:'shortTime' }}</span>
+            </div>
+            <ion-chip [color]="paymentColor(tx.payment_method)" size="small">
+              <ion-label>{{ tx.payment_method }}</ion-label>
+            </ion-chip>
+            <span class="tx-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+          </div>
+        }
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Loyalty Tracking -->
+    <ion-card>
+      <ion-card-header>
+        <div class="loy-header">
+          <ion-card-title>Loyalty Tracking</ion-card-title>
+          <div class="loy-filter">
+            <span class="loy-filter-lbl">Min. services</span>
+            <input class="loy-filter-input" type="number" min="1" [value]="loyaltyMinVisits" (change)="onLoyaltyMinVisitsChange($event)">
+          </div>
+        </div>
+      </ion-card-header>
+      <ion-card-content>
+        @if (loyaltyLoading) {
+          <div class="loading-inline"><ion-spinner name="dots"></ion-spinner></div>
+        } @else if (filteredLoyaltyEntries.length === 0) {
+          <p class="empty">No customers with {{ loyaltyMinVisits }}+ services yet.</p>
+        } @else {
+          @for (entry of filteredLoyaltyEntries; track entry.phone_number) {
+            <div class="loyalty-row">
+              <div class="loy-info loy-clickable" (click)="viewLoyaltyTransactions(entry)">
+                @if (entry.customer_name) { <span class="loy-name">{{ entry.customer_name }}</span> }
+                <span class="loy-phone">{{ entry.phone_number }}</span>
+              </div>
+              <ion-chip color="tertiary" size="small">
+                <ion-label>{{ entry.visit_count }}x</ion-label>
+              </ion-chip>
+              <ion-button size="small" fill="clear" color="success" (click)="notifyLoyalty(entry)">
+                <ion-icon name="chatbubble-outline" slot="icon-only"></ion-icon>
+              </ion-button>
+              <ion-button size="small" fill="clear" color="danger" (click)="clearLoyalty(entry)">
+                <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+              </ion-button>
+            </div>
+          }
+        }
+      </ion-card-content>
+    </ion-card>
+  }
+</ion-content>

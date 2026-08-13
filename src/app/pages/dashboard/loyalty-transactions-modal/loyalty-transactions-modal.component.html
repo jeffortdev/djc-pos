@@ -1,0 +1,50 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-button (click)="dismiss()">
+        <ion-icon name="close-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>
+      <div class="title-wrap">
+        <span class="title-name">{{ entry.customer_name || entry.phone_number }}</span>
+        @if (entry.customer_name) {
+          <span class="title-phone">{{ entry.phone_number }}</span>
+        }
+      </div>
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (loading) {
+    <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
+  } @else if (transactions.length === 0) {
+    <p class="empty">No transactions found.</p>
+  } @else {
+    <div class="summary-bar">
+      <span>{{ totalServiceCount }} services ({{ transactions.length }} transactions)</span>
+      <span class="summary-total">{{ totalSpent | currency:'PHP':'symbol':'1.2-2' }} total</span>
+    </div>
+    @for (tx of transactions; track tx.id) {
+      <div class="tx-row">
+        <div class="tx-meta">
+          <span class="tx-id">#{{ tx.id }}</span>
+          <span class="tx-date">{{ tx.created_at | date:'medium' }}</span>
+          @if (tx.notes) { <span class="tx-notes">{{ tx.notes }}</span> }
+          <div class="tx-services">
+            @for (item of loyaltyItems(tx); track item.id) {
+              <span class="svc-chip">{{ item.service_name }}{{ item.quantity > 1 ? ' ×' + item.quantity : '' }}</span>
+            }
+          </div>
+        </div>
+        <div class="tx-right">
+          <span class="tx-total">{{ tx.total | currency:'PHP':'symbol':'1.2-2' }}</span>
+          <ion-chip [color]="paymentColor(tx.payment_method)" size="small">
+            <ion-label>{{ tx.payment_method }}</ion-label>
+          </ion-chip>
+        </div>
+      </div>
+    }
+  }
+</ion-content>

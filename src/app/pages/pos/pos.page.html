@@ -1,0 +1,173 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>
+      <div class="title-inner-wrap">
+        <img [src]="branding.logoSrc$ | async" alt="logo" class="header-logo">
+        @if ((branding.appTitle$ | async) !== 'DJC Point of Sale') {
+          <span class="header-title">{{ branding.appTitle$ | async }}</span>
+        }
+      </div>
+    </ion-title>
+    <!-- Cart icon button: only visible on phones -->
+    <ion-buttons slot="end" class="mobile-cart-btn">
+      <div class="cart-icon-wrap" (click)="toggleCart()">
+        <ion-button fill="clear">
+          <ion-icon name="cart-outline" slot="icon-only"></ion-icon>
+        </ion-button>
+        @if (cartCount > 0) {
+          <ion-badge color="danger" class="cart-badge">{{ cartCount }}</ion-badge>
+        }
+      </div>
+    </ion-buttons>
+    @if (cart.length > 0) {
+      <ion-buttons slot="end">
+        <ion-button fill="clear" (click)="clearCart()">
+          <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+        </ion-button>
+      </ion-buttons>
+    }
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [scrollY]="false">
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+  @if (loading) {
+    <div class="loading-center"><ion-spinner name="crescent"></ion-spinner></div>
+  } @else {
+    <div class="pos-layout">
+
+      <!-- Backdrop: tapping closes cart sheet on mobile -->
+      <div class="cart-backdrop" [class.visible]="showCart" (click)="toggleCart()"></div>
+
+      <!-- TOP: Service / Product selector -->
+      <div class="services-pane">
+        <div class="section-toggle">
+          <ion-chip [color]="activeMode === 'services' ? 'primary' : ''" (click)="activeMode = 'services'; activeCategory = ''">
+            <ion-label>Services</ion-label>
+          </ion-chip>
+          <ion-chip [color]="activeMode === 'products' ? 'primary' : ''" (click)="activeMode = 'products'; activeCategory = ''">
+            <ion-label>Products</ion-label>
+          </ion-chip>
+        </div>
+        <div class="filter-row">
+          <ion-searchbar
+            [(ngModel)]="filterTerm"
+            placeholder="Search…"
+            [debounce]="150"
+            class="pos-searchbar"
+          ></ion-searchbar>
+          <ion-button fill="clear" (click)="sortAsc = !sortAsc" aria-label="Toggle sort order" class="sort-btn">
+            <ion-icon name="swap-vertical-outline" slot="icon-only"></ion-icon>
+          </ion-button>
+        </div>
+        <div class="category-row">
+          <ion-chip
+            [outline]="activeCategory !== ''"
+            [color]="activeCategory === '' ? 'primary' : ''"
+            (click)="activeCategory = ''"
+          ><ion-label>All</ion-label></ion-chip>
+          @for (cat of categories; track cat) {
+            <ion-chip
+              [outline]="activeCategory !== cat"
+              [color]="activeCategory === cat ? 'primary' : ''"
+              (click)="activeCategory = cat"
+            ><ion-label>{{ cat | titlecase }}</ion-label></ion-chip>
+          }
+        </div>
+        <div class="grid-scroll">
+          <ion-grid>
+            <ion-row>
+              @for (svc of filtered; track svc.id) {
+                <ion-col size="4" size-md="3">
+                  <ion-card class="service-tile" button (click)="addToCart(svc)">
+                    <ion-card-content class="tile-content">
+                      <ion-icon [name]="iconName(svc)" class="tile-icon" color="primary"></ion-icon>
+                      <p class="tile-name">{{ svc.name }}</p>
+                      <p class="tile-price">{{ svc.price | currency:'PHP':'symbol':'1.2-2' }}</p>
+                      @if (activeMode === 'products') {
+                        <p class="tile-stock">Stock: {{ productStock(svc) }}</p>
+                      }
+                    </ion-card-content>
+                  </ion-card>
+                </ion-col>
+              }
+              @empty {
+                <ion-col><p class="empty-msg">No {{ activeMode === 'services' ? 'services' : 'products' }} available.</p></ion-col>
+              }
+            </ion-row>
+          </ion-grid>
+        </div>
+      </div>
+
+      <!-- BOTTOM: Cart (full-width on tablet; bottom sheet on phone) -->
+      <div class="cart-pane" [class.cart-open]="showCart">
+        <!-- Drag handle + close button (mobile only) -->
+        <div class="cart-sheet-handle">
+          <span class="handle-bar"></span>
+          <button class="cart-close-btn" (click)="toggleCart()">
+            <ion-icon name="close-outline"></ion-icon>
+          </button>
+        </div>
+        <div class="cart-header">
+          @if (editTx) {
+            <div class="edit-banner">
+              <span class="edit-banner-label">Editing Order #{{ editTx.id }}</span>
+              <button class="edit-cancel-btn" (click)="cancelEdit()">
+                <ion-icon name="close-outline"></ion-icon>
+              </button>
+            </div>
+          } @else {
+            <span class="cart-title">Order</span>
+            <span class="cart-count">{{ cartCount }} item{{ cartCount !== 1 ? 's' : '' }}</span>
+          }
+        </div>
+        <div class="cart-body">
+          @if (cart.length === 0) {
+            <p class="cart-empty-hint">Tap a service above to add it</p>
+          } @else {
+            @for (item of cart; track item.service_id) {
+              <div class="cart-item">
+                <span class="ci-name">{{ item.service_name }}</span>
+                <div class="ci-controls">
+                  <button class="qty-btn" (click)="decrement(item)">
+                    <ion-icon name="remove-outline"></ion-icon>
+                  </button>
+                  <span class="ci-qty">{{ item.quantity }}</span>
+                  <button class="qty-btn" (click)="increment(item)">
+                    <ion-icon name="add-outline"></ion-icon>
+                  </button>
+                </div>
+                <span class="ci-price">{{ item.price * item.quantity | currency:'PHP':'symbol':'1.2-2' }}</span>
+              </div>
+            }
+          }
+        </div>
+        <div class="cart-footer">
+          <div class="total-row">
+            <span class="total-label">Total</span>
+            <strong class="total-amount">{{ cartTotal | currency:'PHP':'symbol':'1.2-2' }}</strong>
+          </div>
+          @if (editTx) {
+            <div class="edit-btns">
+              <ion-button expand="block" fill="outline" color="medium" [disabled]="cart.length === 0" (click)="saveEdits()">
+                Save Changes
+              </ion-button>
+              <ion-button expand="block" color="success" [disabled]="cart.length === 0" (click)="charge()">
+                <ion-icon name="cash-outline" slot="start"></ion-icon>
+                Charge
+              </ion-button>
+            </div>
+          } @else {
+            <ion-button expand="block" color="primary" [disabled]="cart.length === 0" (click)="charge()">
+              <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
+              Charge {{ cartTotal | currency:'PHP':'symbol':'1.2-2' }}
+            </ion-button>
+          }
+        </div>
+      </div>
+
+    </div>
+  }
+</ion-content>

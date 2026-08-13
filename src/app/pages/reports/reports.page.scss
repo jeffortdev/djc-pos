@@ -1,0 +1,80 @@
+.loading-center { display: flex; justify-content: center; align-items: center; height: 60vh; }
+
+/* Date range bar */
+.date-range-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px 4px; }
+.date-field { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.date-field label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; }
+.date-input { width: 100%; border: 1px solid var(--ion-color-medium); border-radius: 8px; padding: 6px 8px; font-size: 0.88rem; background: var(--ion-background-color); color: var(--ion-text-color); }
+.date-arrow { opacity: 0.4; font-size: 1.1rem; }
+
+/* Payment filter chips */
+.filter-chips { display: flex; gap: 6px; padding: 8px 16px 4px; flex-wrap: wrap; }
+
+/* Payment split */
+.pm-list { display: flex; flex-direction: column; gap: 8px; }
+.pm-row { display: flex; align-items: center; gap: 8px; }
+.pm-bar-wrap { flex: 1; height: 8px; background: rgba(var(--ion-color-medium-rgb),0.2); border-radius: 4px; overflow: hidden; }
+.pm-bar { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+.pm-count { font-size: 0.75rem; opacity: 0.6; min-width: 28px; text-align: right; }
+.pm-rev { font-weight: 700; font-size: 0.85rem; white-space: nowrap; min-width: 80px; text-align: right; }
+
+/* Comparison grid */
+.cmp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.cmp-item { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 6px 2px; }
+.cmp-curr { font-size: 0.9rem; font-weight: 700; }
+.cmp-prev { font-size: 0.65rem; opacity: 0.55; margin: 2px 0; }
+.cmp-badge { display: flex; align-items: center; gap: 2px; font-size: 0.75rem; font-weight: 600; padding: 2px 6px; border-radius: 12px; }
+.cmp-badge.up   { color: var(--ion-color-success); background: rgba(var(--ion-color-success-rgb),0.12); }
+.cmp-badge.down { color: var(--ion-color-danger);  background: rgba(var(--ion-color-danger-rgb),0.12); }
+.cmp-lbl { font-size: 0.65rem; opacity: 0.6; margin-top: 4px; }
+
+/* Bar chart */
+.chart-content { --padding-bottom: 0; }
+.bar-chart { display: flex; align-items: flex-end; gap: 3px; height: 140px; padding-bottom: 20px; overflow-x: auto; }
+.bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 28px; height: 100%; }
+.bar-amount { font-size: 0.5rem; color: var(--ion-color-medium); height: 16px; text-align: center; overflow: hidden; }
+.bar-outer { flex: 1; width: 100%; display: flex; align-items: flex-end; background: rgba(var(--ion-color-primary-rgb),0.1); border-radius: 3px 3px 0 0; }
+.bar-fill { width: 100%; background: var(--ion-color-primary); border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.3s ease; }
+.bar-lbl { font-size: 0.6rem; opacity: 0.7; margin-top: 2px; text-align: center; height: 18px; }
+
+/* Top services */
+.top-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--ion-border-color); }
+.rank { font-weight: 700; opacity: 0.4; min-width: 24px; }
+.svc-name { flex: 1; font-size: 0.9rem; }
+.svc-rev { font-weight: 700; white-space: nowrap; }
+.stock-table { display: grid; gap: 6px; }
+.stock-table-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--ion-border-color); }
+.stock-table-header { font-weight: 700; color: var(--ion-color-medium); border-bottom: 1px solid var(--ion-color-medium); }
+.stock-table-row span { font-size: 0.9rem; }
+.stock-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stock-value, .stock-price { text-align: right; }
+.stock-status { display: inline-flex; justify-content: center; align-items: center; padding: 2px 6px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.stock-status.must-buy { background: rgba(var(--ion-color-danger-rgb),0.15); color: var(--ion-color-danger); }
+.stock-status.warning { background: rgba(var(--ion-color-warning-rgb),0.15); color: var(--ion-color-warning); }
+.stock-status:not(.must-buy):not(.warning) { background: rgba(var(--ion-color-medium-rgb),0.12); color: var(--ion-color-medium); }
+.empty { opacity: 0.5; text-align: center; padding: 16px; }
+.unpaid-card { border-left: 4px solid var(--ion-color-warning); }
+.unpaid-row { display: flex; align-items: center; gap: 10px; }
+.unpaid-icon { font-size: 1.4rem; flex-shrink: 0; }
+.unpaid-info { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.unpaid-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }
+.unpaid-count { font-size: 0.85rem; font-weight: 600; }
+.unpaid-total { font-size: 1.05rem; font-weight: 800; color: var(--ion-color-warning-shade); white-space: nowrap; flex-shrink: 0; }
+
+/* Repeat customers */
+.card-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rc-filters { margin-top: 6px; }
+.rc-period-tabs { display: flex; gap: 4px; }
+.rc-tab { background: rgba(var(--ion-color-medium-rgb),0.12); border: none; border-radius: 14px; padding: 4px 12px; font-size: 0.78rem; cursor: pointer; color: var(--ion-text-color); opacity: 0.65; }
+.rc-tab.active { background: var(--ion-color-primary); color: var(--ion-color-primary-contrast); opacity: 1; }
+.limit-input-wrap { display: flex; align-items: center; gap: 4px; }
+.limit-label { font-size: 0.8rem; color: var(--ion-color-medium); }
+.limit-input { width: 52px; border: 1px solid var(--ion-border-color); border-radius: 8px; padding: 4px 6px; font-size: 0.85rem; text-align: center; background: var(--ion-background-color); color: var(--ion-text-color); }
+.rc-table { display: grid; gap: 2px; }
+.rc-row { display: grid; grid-template-columns: 28px 1fr 60px 110px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--ion-border-color); }
+.rc-header { font-weight: 700; color: var(--ion-color-medium); font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--ion-color-medium); }
+.rc-customer { display: flex; flex-direction: column; gap: 1px; }
+.rc-name { font-size: 0.9rem; font-weight: 600; }
+.rc-phone { font-size: 0.78rem; opacity: 0.6; }
+.rc-right { text-align: right; display: flex; justify-content: flex-end; align-items: center; }
+.rc-spent { font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
