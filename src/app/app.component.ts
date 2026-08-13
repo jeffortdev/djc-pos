@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
-import { AlertController, ToastController } from '@ionic/angular';
+import { CommonModule } from '@angular/common';
+import { AlertController, ToastController, IonApp, IonRouterOutlet, IonSpinner } from '@ionic/angular/standalone';
 import { DatabaseService } from './services/database.service';
 import { BrandingService } from './services/branding.service';
 
@@ -7,7 +8,8 @@ import { BrandingService } from './services/branding.service';
   selector: 'app-root',
   templateUrl: 'app.component.html',
   styleUrls: ['app.component.scss'],
-  standalone: false,
+  standalone: true,
+  imports: [CommonModule, IonApp, IonRouterOutlet, IonSpinner],
 })
 export class AppComponent {
   watermarkSrc    = '';

@@ -59,7 +59,6 @@
 .icon-btn-wrap { position: relative; display: inline-flex; }
 .notify-badge { position: absolute; top: 6px; right: 6px; display: inline-flex; align-items: center; justify-content: center; background: var(--ion-color-success); color: #fff; border-radius: 50%; width: 14px; height: 14px; font-size: 0.6rem; font-weight: 700; pointer-events: none; }
 .section-divider { border-top: 1px solid var(--ion-border-color); margin: 8px 0; }
-.target-card {}
 .target-row { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; margin-top: 10px; }
 .target-period { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; flex-shrink: 0; width: 72px; }
 .target-fraction { flex: 1; font-size: 0.85rem; font-weight: 600; text-align: right; }

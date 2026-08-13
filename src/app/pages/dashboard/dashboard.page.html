@@ -166,13 +166,13 @@
           <div class="target-row">
             <span class="target-period">Today</span>
             <span class="target-fraction" [class.t-success]="pctDay >= 100" [class.t-warning]="pctDay >= 70 && pctDay < 100" [class.t-danger]="pctDay < 70">
-              {{ (stats?.revenue ?? 0) | currency:'PHP':'symbol':'1.0-0' }} / {{ dayTarget | currency:'PHP':'symbol':'1.0-0' }}
+              {{ stats.revenue | currency:'PHP':'symbol':'1.0-0' }} / {{ dayTarget | currency:'PHP':'symbol':'1.0-0' }}
             </span>
             <span class="target-pct" [class.t-success]="pctDay >= 100" [class.t-warning]="pctDay >= 70 && pctDay < 100" [class.t-danger]="pctDay < 70">{{ pctDay }}%</span>
           </div>
           <div class="target-bar-wrap"><div class="target-bar" [class.t-success]="pctDay >= 100" [class.t-warning]="pctDay >= 70 && pctDay < 100" [class.t-danger]="pctDay < 70" [style.width.%]="pctDay > 100 ? 100 : pctDay"></div></div>
           <div class="target-need" [class.t-success]="pctDay >= 100" [class.t-danger]="pctDay < 100">
-            @if (pctDay >= 100) { ✓ Target met! } @else { Need {{ dayTarget - (stats?.revenue ?? 0) | currency:'PHP':'symbol':'1.0-0' }} more }
+            @if (pctDay >= 100) { ✓ Target met! } @else { Need {{ dayTarget - stats.revenue | currency:'PHP':'symbol':'1.0-0' }} more }
           </div>
           <div class="target-row">
             <span class="target-period">This Week</span>
