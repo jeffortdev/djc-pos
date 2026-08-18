@@ -84,7 +84,7 @@
         <ion-card-content>
           <div class="pm-list">
             @for (pm of data.paymentBreakdown; track pm.method) {
-              <div class="pm-row">
+              <div class="pm-row dash-card-row">
                 <ion-chip [color]="pmColor(pm.method)" size="small">
                   <ion-label>{{ pm.method | titlecase }}</ion-label>
                 </ion-chip>
@@ -109,7 +109,7 @@
         <ion-card-content>
           <div class="pm-list">
             @for (p of data.personnelBreakdown; track p.personel) {
-              <div class="pm-row">
+              <div class="pm-row dash-card-row">
                 <ion-chip color="tertiary" size="small">
                   <ion-label>{{ p.personel }}</ion-label>
                 </ion-chip>
@@ -199,7 +199,7 @@
           <p class="empty">No service sales this period.</p>
         }
         @for (svc of data.topServices; track svc.service_name; let i = $index) {
-          <div class="top-row">
+          <div class="top-row dash-card-row">
             <span class="rank">#{{ i + 1 }}</span>
             <span class="svc-name">{{ svc.service_name }}</span>
             <ion-chip color="primary" size="small"><ion-label>{{ svc.quantity }}x</ion-label></ion-chip>
@@ -219,7 +219,7 @@
           <p class="empty">No product sales this period.</p>
         }
         @for (prod of data.topProducts; track prod.product_name; let i = $index) {
-          <div class="top-row">
+          <div class="top-row dash-card-row">
             <span class="rank">#{{ i + 1 }}</span>
             <span class="svc-name">{{ prod.product_name }}</span>
             <ion-chip color="secondary" size="small"><ion-label>{{ prod.quantity }}x</ion-label></ion-chip>
@@ -268,7 +268,7 @@
               <span class="rc-right">Total Spent</span>
             </div>
             @for (c of repeatCustomers; track c.phone_number; let i = $index) {
-              <div class="rc-row">
+              <div class="rc-row dash-card-row">
                 <span class="rank">#{{ i + 1 }}</span>
                 <span class="rc-customer">
                   @if (c.customer_name) { <span class="rc-name">{{ c.customer_name }}</span> }
@@ -303,7 +303,7 @@
               <span>Status</span>
             </div>
             @for (stock of data.stockLevels; track stock.product_name) {
-              <div class="stock-table-row">
+              <div class="stock-table-row dash-card-row">
                 <span class="stock-name">{{ stock.product_name }}</span>
                 <span class="stock-value">{{ stock.stock }} pcs</span>
                 <span>{{ stock.avgDailySales > 0 ? (stock.avgDailySales | number:'1.1-1') : '0' }}</span>

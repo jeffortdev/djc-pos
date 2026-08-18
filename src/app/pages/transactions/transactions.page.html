@@ -114,8 +114,8 @@
                 <div class="tx-meta">
                   <span class="tx-id"># {{ tx.id }}</span>
                   <span class="tx-date">{{ tx.created_at | date:'medium' }}</span>
-                  @if (tx.customer_name) { <span class="tx-customer">{{ tx.customer_name }}</span> }
-                  <span class="tx-personel">{{ tx.personel || 'Personel' }}</span>
+                  @if (tx.customer_name) { <span class="tx-customer"><span class="tx-label">Customer:</span> {{ tx.customer_name }}</span> }
+                  <span class="tx-personel"><span class="tx-label">Staff:</span> {{ tx.personel || 'Personel' }}</span>
                   @if (tx.notes) { <span class="tx-notes">{{ tx.notes }}</span> }
                 </div>
                 <div class="tx-right">

@@ -57,7 +57,7 @@
               <span>Unpaid ({{ pendingOrders.length }})</span>
             </div>
             @for (tx of pendingOrders; track tx.id) {
-              <div class="action-row">
+              <div class="action-row dash-card-row">
                 <div class="action-row-top">
                   <span class="action-id">#{{ tx.id }}</span>
                   @if (tx.customer_name || tx.notes) {
@@ -118,7 +118,7 @@
               <span>Awaiting Pickup ({{ pickupOrders.length }})</span>
             </div>
             @for (tx of pickupOrders; track tx.id) {
-              <div class="action-row">
+              <div class="action-row dash-card-row">
                 <div class="action-row-top">
                   <span class="action-id">#{{ tx.id }}</span>
                   @if (tx.customer_name || tx.notes) {
@@ -285,7 +285,7 @@
           <p class="empty">No sales yet today.</p>
         }
         @for (svc of stats.topServices; track svc.service_name; let i = $index) {
-          <div class="top-svc-row">
+          <div class="top-svc-row dash-card-row">
             <span class="rank">#{{ i + 1 }}</span>
             <span class="svc-name">{{ svc.service_name }}</span>
             <ion-chip color="primary" size="small">
@@ -307,7 +307,7 @@
           <p class="empty">No transactions yet.</p>
         }
         @for (tx of stats.recentTransactions; track tx.id) {
-          <div class="recent-tx">
+          <div class="recent-tx dash-card-row">
             <div class="tx-left">
               <span class="tx-id"># {{ tx.id }}</span>
               <span class="tx-time">{{ tx.created_at | date:'shortTime' }}</span>
@@ -339,7 +339,7 @@
           <p class="empty">No customers with {{ loyaltyMinVisits }}+ services yet.</p>
         } @else {
           @for (entry of filteredLoyaltyEntries; track entry.phone_number) {
-            <div class="loyalty-row">
+            <div class="loyalty-row dash-card-row">
               <div class="loy-info loy-clickable" (click)="viewLoyaltyTransactions(entry)">
                 @if (entry.customer_name) { <span class="loy-name">{{ entry.customer_name }}</span> }
                 <span class="loy-phone">{{ entry.phone_number }}</span>

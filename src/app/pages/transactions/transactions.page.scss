@@ -16,6 +16,7 @@
 .tx-notes { font-size: 0.78rem; font-style: italic; opacity: 0.7; }
 .tx-customer { font-size: 0.85rem; font-weight: 600; }
 .tx-personel { font-size: 0.78rem; opacity: 0.65; }
+.tx-label { font-weight: 700; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.03em; opacity: 0.6; margin-right: 2px; }
 .tx-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .tx-total { font-weight: 700; font-size: 1rem; color: var(--ion-color-primary); }
 .neg-amount { color: var(--ion-color-danger) !important; }
